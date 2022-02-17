@@ -1,0 +1,11 @@
+/lib
+/backup
+/locale
+consominer.exe
+consominer.dbg
+gitinst.txt
+data.txt
+*.res
+*.lps
+*.mo
+
