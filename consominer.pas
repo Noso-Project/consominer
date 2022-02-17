@@ -3,10 +3,10 @@ program consominer;
 {$mode objfpc}{$H+}
 
 uses
-  {$IFDEF UNIX}{$IFDEF UseCThreads}
-  cthreads,
-  {$ENDIF}{$ENDIF}
-  Classes, sysutils, nosocoreunit, crt, strutils, windows
+  {$IFDEF UNIX}
+   cthreads,
+   {$ENDIF}
+  Classes, sysutils, nosocoreunit, crt, strutils
   { you can add units after this };
 
 Type
@@ -117,8 +117,6 @@ End;
 {$R *.res}
 
 begin
-SetConsoleOutputCP(DefaultSystemCodePage);
-SetTextCodePage(Output, DefaultSystemCodePage);
 InitCriticalSection(CS_Counter);
 SetLEngth(ARRAY_Nodes,0);
 MaxCPU:= {$IFDEF UNIX}GetSystemThreadCount{$ELSE}GetCPUCount{$ENDIF};
