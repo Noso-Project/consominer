@@ -6,16 +6,24 @@ uses
   {$IFDEF UNIX}
    cthreads,
   {$ENDIF}
-  {$IFDEF WINDOWS}
-  Windows, {for setconsoleoutputcp}
-  {$ENDIF}
-  Classes, sysutils, nosocoreunit, crt, strutils, UTF8Process
+  Classes, sysutils, nosocoreunit, strutils , UTF8Process
   { you can add units after this };
 
 Type
   TMinerThread = class(TThread)
     private
       procedure UpdateScreen;
+    protected
+      procedure Execute; override;
+    public
+      Constructor Create(CreateSuspended : boolean);
+    end;
+
+  TMainThread = class(TThread)
+    private
+      procedure DoSomething;
+      procedure UpdateBlockTime;
+      procedure UpdateMainnetData;
     protected
       procedure Execute; override;
     public
@@ -33,9 +41,18 @@ var
   Consensus : TNodeData;
   Counter, Counter2 : integer;
   ArrMiners : Array of TMinerThread;
-  CPUspeed, TotalSpeed: extended;
+  MainThread : TMainThread;
+  CPUspeed: extended;
+  HashesToTest : integer = 5000;
+  FirstRun : boolean = true;
 
 constructor TMinerThread.Create(CreateSuspended : boolean);
+Begin
+inherited Create(CreateSuspended);
+FreeOnTerminate := True;
+End;
+
+constructor TMainThread.Create(CreateSuspended : boolean);
 Begin
 inherited Create(CreateSuspended);
 FreeOnTerminate := True;
@@ -44,6 +61,21 @@ End;
 procedure TMinerThread.UpdateScreen();
 Begin
 DoNothing();
+End;
+
+procedure TMainThread.DoSomething();
+Begin
+
+End;
+
+procedure TMainThread.UpdateBlockTime();
+Begin
+
+End;
+
+procedure TMainThread.UpdateMainnetData();
+Begin
+
 End;
 
 procedure TMinerThread.Execute;
@@ -59,49 +91,27 @@ While not FinishMiners do
    end;
 End;
 
-Procedure PrintXY(x,y,long:integer;texto:string;colour:integer);
+procedure TMainThread.Execute;
 Begin
-textcolor(colour);
-texto := AddCharR(#32,texto,long);
-gotoxy(x,y);
-Write(Texto);
-End;
+repeat
+   if runminer then
+      begin
+      if (UTCTime) >= GetBlockEnd-15 then
+         begin
+         FinishMiners := true;
 
-Procedure DrawGUI();
-Begin
-ClrScr;
-Textcolor(LightGray);
-Writeln('╔'+crtline+'╗');
-writeln('*'+'                                                                             '+'*');
-Writeln('*'+CRTLine+'*');
-writeln('*'+' Detected OS     :            Max CPUs :       Nodes :                       '+'*');
-Writeln('*'+CRTLine+'*');
-writeln('*'+' Minning address :                                       CPUs :              '+'*');
-Writeln('*'+CRTLine+'*');
-writeln('*'+' Block :           Age :        Hash :                                       '+'*');
-writeln('*'+' Best hash :                                                                 '+'*');
-writeln('*'+'                                                                             '+'*');
-writeln('*'+'                                                                             '+'*');
-Writeln('*'+CRTLine+'*');
-writeln('*'+'                                                                             '+'*');
-Writeln('*'+CRTLine+'*');
-//Writeln('Console output codepage: ', GetTextCodePage(Output));
-PrintXY(30,2,40,'Consominer Nosohash 1.0',yellow);
-PrintXY(21,4,10,GetOs,yellow);
-PrintXY(43,4,5,MaxCPU.ToString,yellow);
-PrintXY(58,4,2,Length(array_nodes).ToString,yellow);
-PrintXY(21,6,35,address,green);
-PrintXY(66,6,2,CPUCount.ToString,green);
-if autostart then PrintXY(72,6,5,'AUTO',green)
-else PrintXY(72,6,5,'',black);
-End;
+         end;
+      if ( (UTCTime >= GetBlockEnd+10) and (LastSync+30<UTCTime) ) then
+         begin
+         LastSync := UTCTime;
+         end;
+      if ((usegui) and (not FinishMiners)) then
+         begin
 
-procedure FillMainnetData();
-Begin
-PrintXY(11,8,7,(Consensus.block).ToString,LightCyan);
-PrintXY(27,8,5,IntToStr(UTCTime-Consensus.LBTimeEnd),LightCyan);
-PrintXY(41,8,32,Consensus.LBHash,LightCyan);
-PrintXY(15,9,32,Consensus.NMSDiff,LightCyan);
+         end;
+      end;
+   sleep(1000);
+until FinishProgram;
 End;
 
 Procedure LoadData();
@@ -125,50 +135,54 @@ End;
 {$R *.res}
 
 begin
-{$IFDEF WINDOWS}
-SetConsoleOutputCP(CP_UTF8);
-{$ENDIF}
 InitCriticalSection(CS_Counter);
+InitCriticalSection(CS_ThisBlockEnd);
 SetLEngth(ARRAY_Nodes,0);
 MaxCPU:= {$IFDEF UNIX}GetSystemThreadCount{$ELSE}GetCPUCount{$ENDIF};
 SetLength(ArrMiners,MaxCPU);
 if not FileExists('data.txt') then savedata('N2kFAtGWLb57Qz91sexZSAnYwA3T7Cy',MaxCPU,false,false);
 loaddata();
 LoadSeedNodes;
-DrawGUI;
-PrintXY(65,2,10,' Syncing... ',blink+green);
+writeln('Consominer Nosohash 1.0');
+Writeln(GetOs+' --- '+MaxCPU.ToString+' CPUs --- '+Length(array_nodes).ToString+' Nodes');
+writeln('Using '+address+' with '+CPUCount.ToString+' cores');
+Write('Syncing...',#13);
 Consensus:=GetConsensus;
-PrintXY(65,2,10,'            ',black);
-FillMainnetData;
-
-
+Writeln(format('Block: %d / Age: %d secs / Hash: %s',[Consensus.block,UTCTime-Consensus.LBTimeEnd,Consensus.LBHash]));
+LastSync := UTCTime;
+SetBlockEnd(Consensus.LBTimeEnd+600);
+MainThread := TMainThread.Create(true);
+MainThread.FreeOnTerminate:=true;
+MainThread.Start;
 REPEAT
-   PrintXY(3,13,75,'>>',LightGray);
-   gotoxy(6,13);
-   Textcolor(white);
-   readln(command);
+   command := '';
+   if FirstRun then
+      begin
+      FirstRun := false;
+      if AutoStart then Command := 'MINE';
+      end;
+   if command = '' then readln(command);
    if Uppercase(Parameter(command,0)) = 'ADDRESS' then
       begin
       address := parameter(command,1);
       savedata(address,CPUCount,Autostart,usegui);
-      DrawGUI;
+      writeln ('Minning address set to : '+address);
       end
    else if Uppercase(Parameter(command,0)) = 'CPU' then
       begin
       cpucount := StrToIntDef(parameter(command,1),CPUCount);
       savedata(address,CPUCount,Autostart,usegui);
-      DrawGUI;
+      writeln ('Minning CPUs set to : '+CPUCount.ToString);
       end
    else if Uppercase(Parameter(command,0)) = 'TEST' then
       begin
-      clrscr();
       for counter :=1 to MaxCPU do
          begin
          write('Testing with '+counter.ToString+' CPUs: ');
          TestStart := GetTickCount64;
          FinishMiners := false;
          Testing:= true;
-         Miner_Counter := 1000000000-(25000*counter);
+         Miner_Counter := 1000000000-(HashesToTest*counter);
          for counter2 := 1 to counter do
             begin
             ArrMiners[counter2-1] := TMinerThread.Create(true);
@@ -178,16 +192,10 @@ REPEAT
          ArrMiners[counter2-1].WaitFor;
          TestEnd := GetTickCount64;
          TestTime := (TestEnd-TestStart);
-         CPUSpeed := 25000/(testtime/1000);
+         CPUSpeed := HashesToTest/(testtime/1000);
          writeln(FormatFloat('0.00',CPUSpeed)+' -> '+FormatFloat('0.00',CPUSpeed*counter));
          end;
       Testing := false;
-      Writeln('Press any key to continue...');
-      cursoroff;
-      Waitingkey := Readkey;
-      cursoron;
-      DrawGui();
-      FillMainnetData;
       end
    else if Uppercase(Parameter(command,0)) = 'EXIT' then
       begin
@@ -197,7 +205,26 @@ REPEAT
       begin
       autostart := StrToBoolDef(parameter(command,1),autostart);
       savedata(address,CPUCount,Autostart,usegui);
-      DrawGUI;
+      writeln ('Autostart set to : '+BoolToStr(autostart,true));
+      end
+   else if Uppercase(Parameter(command,0)) = 'USEGUI' then
+      begin
+      usegui := StrToBoolDef(parameter(command,1),usegui);
+      savedata(address,CPUCount,Autostart,usegui);
+      writeln ('UseGUI set to : '+BoolToStr(usegui,true));
+      end
+   else if Uppercase(Parameter(command,0)) = 'MINE' then
+      begin
+      RunMiner := true;
+      if not usegui then writeln('Minning with '+CPUcount.ToString+' CPUs');
+      FinishMiners := false;
+      Miner_Counter := 1000000000;
+      for counter2 := 1 to CPUCount do
+         begin
+         ArrMiners[counter2-1] := TMinerThread.Create(true);
+         ArrMiners[counter2-1].FreeOnTerminate:=true;
+         ArrMiners[counter2-1].Start;
+         end;
       end
    else
       begin
@@ -206,5 +233,7 @@ REPEAT
 
 UNTIL Uppercase(command) = 'EXIT';
 DoneCriticalSection(CS_Counter);
+DoneCriticalSection(CS_ThisBlockEnd);
+
 end.// end program
 

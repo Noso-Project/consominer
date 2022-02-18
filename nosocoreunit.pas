@@ -45,17 +45,25 @@ Function NosoHash(source:string):string;
 Function CheckHashDiff(Target,ThisHash:String):string;
 function GetHashToMine():String;
 Function HashMD5String(StringToHash:String):String;
+Procedure SetBlockEnd(value:int64);
+Function GetBlockEnd():int64;
 
 var
   ARRAY_Nodes : array of TNodeData;
   CS_Counter : TRTLCriticalSection;
+  CS_ThisBlockEnd : TRTLCriticalSection;
+  CurrentBlockEnd : Int64 = 0;
   FinishMiners : boolean = true;
   Miner_Counter : integer = 100000000;
   TestStart, TestEnd, TestTime : Int64;
   Miner_Prefix : String = '!!!!!!!!!';
   Testing : Boolean = false;
-  CRTLine : String = '═════════════════════════════════════════════════════════════════════════════';
+  RunMiner : Boolean = false;
+  MinningSpeed : extended = 0;
+  LastSync : int64 = 0;
+  CRTLine : String = '*****************************************************************************';
   WaitingKey : Char;
+  FinishProgram : boolean = false;
   DefaultNodes : String = 'DefNodes '+
                           '23.94.21.83:8080 '+
                           '45.146.252.103:8080 '+
@@ -461,6 +469,20 @@ Function HashMD5String(StringToHash:String):String;
 Begin
 result := Uppercase(MD5Print(MD5String(StringToHash)));
 end;
+
+Procedure SetBlockEnd(value:int64);
+Begin
+EnterCriticalSection(CS_ThisBlockEnd);
+CurrentBlockEnd := value;
+LeaveCriticalSection(CS_ThisBlockEnd);
+End;
+
+Function GetBlockEnd():int64;
+Begin
+EnterCriticalSection(CS_ThisBlockEnd);
+result := CurrentBlockEnd;
+LeaveCriticalSection(CS_ThisBlockEnd);
+End;
 
 END.// END UNIT
 
