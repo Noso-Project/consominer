@@ -38,8 +38,6 @@ var
   cpucount : integer = 1;
   autostart : boolean = false;
   usegui    : boolean = false;
-  TargetHash : string = '00000000000000000000000000000000';
-  Consensus : TNodeData;
   Counter, Counter2 : integer;
   ArrMiners : Array of TMinerThread;
   MainThread : TMainThread;
@@ -88,7 +86,7 @@ While not FinishMiners do
    BaseHash := GetHashToMine;
    ThisHash := NosoHash(BaseHash+Address);
    ThisDiff := CheckHashDiff(TargetHash,ThisHash);
-   if ThisDiff<TargetHash then writeln('Solution found');
+   if ThisDiff<TargetDiff then DoNothing;
    end;
 End;
 
@@ -97,14 +95,21 @@ Begin
 repeat
    if runminer then
       begin
-      if (UTCTime) >= GetBlockEnd-15 then
-         begin
-         FinishMiners := true;
-
-         end;
       if ( (UTCTime >= GetBlockEnd+10) and (LastSync+30<UTCTime) ) then
          begin
-         Consensus := Getconsensus;;
+         LastSync := UTCTime;
+         Consensus := Getconsensus;
+         FinishMiners := false;
+         Miner_Counter := 1000000000;
+         for counter2 := 1 to CPUCount do
+            begin
+            ArrMiners[counter2-1] := TMinerThread.Create(true);
+            ArrMiners[counter2-1].FreeOnTerminate:=true;
+            ArrMiners[counter2-1].Start;
+            end;
+         writeln('-----------------------------------------------------------------------------');
+         Writeln(Format('Block: %d / Address: %s / Cores: %d',[Consensus.block,address,cpucount]));
+         Writeln(Format('Time: %s / Target: %s',[ShowReadeableTime(UTCTime-StartMinningTimeStamp),Copy(TargetHash,1,10)]));
          end;
       end;
    sleep(1000);
@@ -116,7 +121,7 @@ var
   datafile : textfile;
   linea : string;
 Begin
-Assignfile(datafile, 'data.txt');
+Assignfile(datafile, 'consominer.cfg');
 TRY
 reset(datafile);
 EXCEPT ON E:EXCEPTION do
@@ -231,7 +236,7 @@ REPEAT
          TestEnd := GetTickCount64;
          TestTime := (TestEnd-TestStart);
          CPUSpeed := HashesToTest/(testtime/1000);
-         writeln(FormatFloat('0.00',CPUSpeed)+' -> '+FormatFloat('0.00',CPUSpeed*counter));
+         writeln(FormatFloat('0.00',CPUSpeed)+' -> '+FormatFloat('0.00',CPUSpeed*counter)+' h/s');
          end;
       Testing := false;
       end
@@ -258,12 +263,17 @@ REPEAT
       writeln('Press CTRL+C to finish');
       FinishMiners := false;
       Miner_Counter := 1000000000;
+      StartMinningTimeStamp := UTCTime;
       for counter2 := 1 to CPUCount do
          begin
          ArrMiners[counter2-1] := TMinerThread.Create(true);
          ArrMiners[counter2-1].FreeOnTerminate:=true;
          ArrMiners[counter2-1].Start;
          end;
+      writeln('-----------------------------------------------------------------------------');
+      Writeln(Format('Block: %d / Address: %s / Cores: %d',[Consensus.block,address,cpucount]));
+      Writeln(Format('Time: %s / Target: %s',[ShowReadeableTime(UTCTime-StartMinningTimeStamp),Copy(TargetHash,1,10)]));
+      //write(Format('Target: %s / Best: %s / Speed: %s h/s',[Copy(TargetHash,1,10),Copy(TargetDiff,1,10),formatfloat('0.00',MinningSpeed)]),#13);
       Repeat
       until RunMiner = false;
       end

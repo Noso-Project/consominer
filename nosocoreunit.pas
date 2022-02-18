@@ -47,22 +47,29 @@ function GetHashToMine():String;
 Function HashMD5String(StringToHash:String):String;
 Procedure SetBlockEnd(value:int64);
 Function GetBlockEnd():int64;
+Function ShowReadeableTime(Totalseconds:integer):string;
 
 var
   ARRAY_Nodes : array of TNodeData;
   CS_Counter      : TRTLCriticalSection;
   CS_ThisBlockEnd : TRTLCriticalSection;
   CS_MinerData    : TRTLCriticalSection;
+  Consensus : TNodeData;
   CurrentBlockEnd : Int64 = 0;
+  TargetHash : string = '00000000000000000000000000000000';
+  TargetDiff : String = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
   FinishMiners : boolean = true;
   Miner_Counter : integer = 100000000;
   TestStart, TestEnd, TestTime : Int64;
   Miner_Prefix : String = '!!!!!!!!!';
   Testing : Boolean = false;
   RunMiner : Boolean = false;
+  StartMinningTimeStamp:int64 = 0;
   MinningSpeed : extended = 0;
+  LastSpeedCounter : integer = 100000000;
+  LastSpeedUpdate : integer = 0;
+  LastSpeedHashes : integer = 0;
   LastSync : int64 = 0;
-  CRTLine : String = '*****************************************************************************';
   WaitingKey : Char;
   FinishProgram : boolean = false;
   DefaultNodes : String = 'DefNodes '+
@@ -168,7 +175,7 @@ var
   datafile : textfile;
 Begin
 result := true;
-Assignfile(datafile, 'data.txt');
+Assignfile(datafile, 'consominer.cfg');
 rewrite(datafile);
 writeln(datafile,'address '+address);
 writeln(datafile,'cpu '+cpucount.ToString);
@@ -338,7 +345,10 @@ For counter := 0 to length (ARRAY_Nodes)-1 do
    AddValue(ARRAY_Nodes[counter].LBTimeEnd.ToString);
    Result.LBTimeEnd := GetHighest.ToInt64;
    End;
-
+EnterCriticalSection(CS_MinerData);
+TargetHash := Result.LBHash;
+TargetDiff := Result.NMSDiff;
+LeaveCriticalSection(CS_MinerData);
 End;
 
 Procedure DoNothing();
@@ -463,6 +473,14 @@ If Miner_Counter>999999999 then
    IncreaseHashSeed(Miner_Prefix);
    if Testing then FinishMiners := true;
    end;
+if ( (LastSpeedUpdate+4 < UTCTime) and (not Testing) ) then
+   begin
+   LastSpeedUpdate := UTCTime;
+   LastSpeedHashes := Miner_Counter-LastSpeedCounter;
+   MinningSpeed := LastSpeedHashes / 5;
+   LastSpeedCounter := Miner_Counter;
+   write(Format('Age: %d / Best: %s / Speed: %s h/s',[UTCTime-Consensus.LBTimeEnd,Copy(TargetDiff,1,10),formatfloat('0.00',MinningSpeed)]),#13);
+   end;
 LeaveCriticalSection(CS_Counter);
 End;
 
@@ -483,6 +501,21 @@ Begin
 EnterCriticalSection(CS_ThisBlockEnd);
 result := CurrentBlockEnd;
 LeaveCriticalSection(CS_ThisBlockEnd);
+End;
+
+Function ShowReadeableTime(Totalseconds:integer):string;
+var
+  days,hours,minutes,seconds, remain : integer;
+Begin
+Days := Totalseconds div 86400;
+remain := Totalseconds mod 86400;
+hours := remain div 3600;
+remain := remain mod 3600;
+minutes := remain div 60;
+remain := remain mod 60;
+seconds := remain;
+if Days > 0 then Result:= Format('%dd %.2d:%.2d:%.2d', [Days, Hours, Minutes, Seconds])
+else Result:= Format('%.2d:%.2d:%.2d', [Hours, Minutes, Seconds]);
 End;
 
 END.// END UNIT

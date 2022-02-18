@@ -2,6 +2,7 @@
 /backup
 /locale
 consominer
+consominer.cfg
 consominer.exe
 consominer.dbg
 gitinst.txt
