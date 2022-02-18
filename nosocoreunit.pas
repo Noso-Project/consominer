@@ -36,7 +36,7 @@ type
 Function GetOS():string;
 function UTCTime():int64;
 Function Parameter(LineText:String;ParamNumber:int64):String;
-function SaveData(address:string;cpucount:integer;autostart:boolean):boolean;
+function SaveData(address:string;cpucount:integer;autostart, usegui:boolean):boolean;
 function LoadSeedNodes():integer;
 Function GetConsensus():TNodeData;
 Procedure SyncNodes();
@@ -54,7 +54,7 @@ var
   TestStart, TestEnd, TestTime : Int64;
   Miner_Prefix : String = '!!!!!!!!!';
   Testing : Boolean = false;
-  CRTLine : String = '';
+  CRTLine : String = '═════════════════════════════════════════════════════════════════════════════';
   WaitingKey : Char;
   DefaultNodes : String = 'DefNodes '+
                           '23.94.21.83:8080 '+
@@ -154,7 +154,7 @@ if temp = ' ' then temp := '';
 Result := Temp;
 End;
 
-function SaveData(address:string;cpucount:integer;autostart:boolean):boolean;
+function SaveData(address:string;cpucount:integer;autostart,usegui:boolean):boolean;
 var
   datafile : textfile;
 Begin
@@ -164,6 +164,7 @@ rewrite(datafile);
 writeln(datafile,'address '+address);
 writeln(datafile,'cpu '+cpucount.ToString);
 writeln(datafile,'autostart '+BoolToStr(autostart,true));
+writeln(datafile,'usegui '+BoolToStr(usegui,true));
 CloseFile(datafile);
 End;
 

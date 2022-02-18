@@ -5,8 +5,11 @@ program consominer;
 uses
   {$IFDEF UNIX}
    cthreads,
-   {$ENDIF}
-  Classes, sysutils, nosocoreunit, crt, strutils
+  {$ENDIF}
+  {$IFDEF WINDOWS}
+  Windows, {for setconsoleoutputcp}
+  {$ENDIF}
+  Classes, sysutils, nosocoreunit, crt, strutils, UTF8Process
   { you can add units after this };
 
 Type
@@ -25,6 +28,7 @@ var
   address : string;
   cpucount : integer;
   autostart : boolean;
+  usegui    : boolean;
   TargetHash : string = '00000000000000000000000000000000';
   Consensus : TNodeData;
   Counter, Counter2 : integer;
@@ -67,20 +71,20 @@ Procedure DrawGUI();
 Begin
 ClrScr;
 Textcolor(LightGray);
-Writeln(#201+crtline+#187);
-writeln(#186+'                                                                             '+#186);
-Writeln(#204+CRTLine+#185);
-writeln(#186+' Detected OS     :            Max CPUs :       Nodes :                       '+#186);
-Writeln(#204+CRTLine+#185);
-writeln(#186+' Minning address :                                       CPUs :              '+#186);
-Writeln(#204+CRTLine+#185);
-writeln(#186+' Block :           Age :        Hash :                                       '+#186);
-writeln(#186+' Best hash :                                                                 '+#186);
-writeln(#186+'                                                                             '+#186);
-writeln(#186+'                                                                             '+#186);
-Writeln(#204+CRTLine+#185);
-writeln(#186+'                                                                             '+#186);
-Writeln(#200+CRTLine+#188);
+Writeln('╔'+crtline+'╗');
+writeln('*'+'                                                                             '+'*');
+Writeln('*'+CRTLine+'*');
+writeln('*'+' Detected OS     :            Max CPUs :       Nodes :                       '+'*');
+Writeln('*'+CRTLine+'*');
+writeln('*'+' Minning address :                                       CPUs :              '+'*');
+Writeln('*'+CRTLine+'*');
+writeln('*'+' Block :           Age :        Hash :                                       '+'*');
+writeln('*'+' Best hash :                                                                 '+'*');
+writeln('*'+'                                                                             '+'*');
+writeln('*'+'                                                                             '+'*');
+Writeln('*'+CRTLine+'*');
+writeln('*'+'                                                                             '+'*');
+Writeln('*'+CRTLine+'*');
 //Writeln('Console output codepage: ', GetTextCodePage(Output));
 PrintXY(30,2,40,'Consominer Nosohash 1.0',yellow);
 PrintXY(21,4,10,GetOs,yellow);
@@ -88,6 +92,8 @@ PrintXY(43,4,5,MaxCPU.ToString,yellow);
 PrintXY(58,4,2,Length(array_nodes).ToString,yellow);
 PrintXY(21,6,35,address,green);
 PrintXY(66,6,2,CPUCount.ToString,green);
+if autostart then PrintXY(72,6,5,'AUTO',green)
+else PrintXY(72,6,5,'',black);
 End;
 
 procedure FillMainnetData();
@@ -111,20 +117,24 @@ readln(datafile,linea);
 cpucount := StrToIntDef(Parameter(linea,1),1);
 readln(datafile,linea);
 autostart := StrToBool(Parameter(linea,1));
+readln(datafile,linea);
+usegui := StrToBool(Parameter(linea,1));
 CloseFile(datafile);
 End;
 
 {$R *.res}
 
 begin
+{$IFDEF WINDOWS}
+SetConsoleOutputCP(CP_UTF8);
+{$ENDIF}
 InitCriticalSection(CS_Counter);
 SetLEngth(ARRAY_Nodes,0);
 MaxCPU:= {$IFDEF UNIX}GetSystemThreadCount{$ELSE}GetCPUCount{$ENDIF};
 SetLength(ArrMiners,MaxCPU);
-if not FileExists('data.txt') then savedata('devteam_donations',MaxCPU,false);
+if not FileExists('data.txt') then savedata('N2kFAtGWLb57Qz91sexZSAnYwA3T7Cy',MaxCPU,false,false);
 loaddata();
 LoadSeedNodes;
-CRTLine := AddCharR(#205,CRTLine,77);
 DrawGUI;
 PrintXY(65,2,10,' Syncing... ',blink+green);
 Consensus:=GetConsensus;
@@ -140,14 +150,14 @@ REPEAT
    if Uppercase(Parameter(command,0)) = 'ADDRESS' then
       begin
       address := parameter(command,1);
-      savedata(address,CPUCount,Autostart);
-      PrintXY(21,6,40,address,green);
+      savedata(address,CPUCount,Autostart,usegui);
+      DrawGUI;
       end
    else if Uppercase(Parameter(command,0)) = 'CPU' then
       begin
       cpucount := StrToIntDef(parameter(command,1),CPUCount);
-      savedata(address,CPUCount,Autostart);
-      PrintXY(21,7,40,CPUCount.ToString,green);
+      savedata(address,CPUCount,Autostart,usegui);
+      DrawGUI;
       end
    else if Uppercase(Parameter(command,0)) = 'TEST' then
       begin
@@ -183,11 +193,15 @@ REPEAT
       begin
       DoNothing;
       end
+   else if Uppercase(Parameter(command,0)) = 'AUTOSTART' then
+      begin
+      autostart := StrToBoolDef(parameter(command,1),autostart);
+      savedata(address,CPUCount,Autostart,usegui);
+      DrawGUI;
+      end
    else
       begin
-      Sound(100);
-      Delay(100);
-      NoSound;
+      donothing; // invalid command
       end;
 
 UNTIL Uppercase(command) = 'EXIT';
