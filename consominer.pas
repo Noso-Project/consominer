@@ -97,6 +97,7 @@ repeat
       begin
       if ( (UTCTime >= GetBlockEnd+10) and (LastSync+30<UTCTime) ) then
          begin
+         FinishMiners := true;
          LastSync := UTCTime;
          Consensus := Getconsensus;
          FinishMiners := false;
@@ -178,7 +179,7 @@ InitCriticalSection(CS_MinerData);
 SetLEngth(ARRAY_Nodes,0);
 MaxCPU:= {$IFDEF UNIX}GetSystemThreadCount{$ELSE}GetCPUCount{$ENDIF};
 SetLength(ArrMiners,MaxCPU);
-if not FileExists('data.txt') then savedata('N2kFAtGWLb57Qz91sexZSAnYwA3T7Cy',MaxCPU,false,false);
+if not FileExists('consominer.cfg') then savedata('N2kFAtGWLb57Qz91sexZSAnYwA3T7Cy',MaxCPU,false,false);
 loaddata();
 LoadSeedNodes;
 writeln('Consominer Nosohash 1.0');
