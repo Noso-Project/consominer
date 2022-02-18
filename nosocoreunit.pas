@@ -50,8 +50,9 @@ Function GetBlockEnd():int64;
 
 var
   ARRAY_Nodes : array of TNodeData;
-  CS_Counter : TRTLCriticalSection;
+  CS_Counter      : TRTLCriticalSection;
   CS_ThisBlockEnd : TRTLCriticalSection;
+  CS_MinerData    : TRTLCriticalSection;
   CurrentBlockEnd : Int64 = 0;
   FinishMiners : boolean = true;
   Miner_Counter : integer = 100000000;
