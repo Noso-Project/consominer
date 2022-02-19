@@ -141,15 +141,16 @@ repeat
             SentThis := 0;
             FinishMiners := false;
             Miner_Counter := 1000000000;
+            writeln(#13,'-----------------------------------------------------------------------------');
+            Writeln(Format('Block: %d / Address: %s / Cores: %d',[Consensus.block,address,cpucount]));
+            Writeln(Format('Time: %s / Target: %s',[ShowReadeableTime(UTCTime-StartMinningTimeStamp),Copy(TargetHash,1,10)]));
             for counter2 := 1 to CPUCount do
                begin
                ArrMiners[counter2-1] := TMinerThread.Create(true);
                ArrMiners[counter2-1].FreeOnTerminate:=true;
                ArrMiners[counter2-1].Start;
-               writeln(#13,'-----------------------------------------------------------------------------');
-               Writeln(Format('Block: %d / Address: %s / Cores: %d',[Consensus.block,address,cpucount]));
-               Writeln(Format('Time: %s / Target: %s',[ShowReadeableTime(UTCTime-StartMinningTimeStamp),Copy(TargetHash,1,10)]));
                end;
+
             end;
          end;
       end;
