@@ -28,9 +28,6 @@ jobs:
     - name: Install packages
       run: |
         lazbuild -qqq Packages/Indy10/indylaz.lpk
-        lazbuild -qqq Packages/HashLib/src/Packages/FPC/HashLib4PascalPackage.lpk
-        lazbuild -qqq Packages/SimpleBaseLib/src/Packages/FPC/SimpleBaseLib4PascalPackage.lpk
-        lazbuild -qqq Packages/CryptoLib4Pascal-master/CryptoLib/src/Packages/FPC/CryptoLib4PascalPackage.lpk
     - name: Build the Main Application
       run: lazbuild -B --bm="Release" "consominer.lpi"
     - uses: actions/upload-artifact@v2
