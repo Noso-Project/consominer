@@ -19,9 +19,6 @@ You just need to download the appropriate Windows or Linux(Beta) version, uncomp
 To build from source you'll need a working installation of [Lazarus](https://www.lazarus-ide.org/index.php?page=downloads) and the following packages:
 
 - Indy 10
-- HashLib4PascalPackage
-- SimpleBaseLib4PascalPackage
-- CryptoLib4PascalPackage
 
 These packages are included in a folder called `Packages` located from the root of the repository. This is provided for convinience of the GitHub builds and may not always contain the latest version of these packages.
 
