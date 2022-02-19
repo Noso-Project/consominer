@@ -65,8 +65,7 @@ jobs:
           tag=${{ github.event.ref }}
           tag=${tag#"refs/tags/"}
           chmod +x consominer
-          tar -zcvf consominer-${tag}-x86_64-linux.tgz consominer
-          zip -r consominer-${tag}-x86_64-linux.zip consominer
+          tar -zcvf consominer-${tag}-x86_64-linux.tar.gz consominer
       - name: Upload Release
         uses: softprops/action-gh-release@v1
         with:
