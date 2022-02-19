@@ -51,7 +51,7 @@ var
 Begin
 result := 0;
 for Counter:= 0 to MaxCPU - 1 do
-   if Assigned(ArrMiners[Counter]) then Inc(result);
+   if Assigned(ArrMiners[Counter]) then result := result+1;
 End;
 
 constructor TMinerThread.Create(CreateSuspended : boolean);
@@ -250,9 +250,14 @@ REPEAT
             ArrMiners[counter2-1].FreeOnTerminate:=true;
             ArrMiners[counter2-1].Start;
             end;
-         Repeat
-         sleep(1)
-         until MinersCount = 0;
+         repeat
+           ActiveMiners:= 0;
+           for counter3:= 0 to MaxCPU-1 do
+           begin
+             if Assigned(ArrMiners[counter3]) then Inc(ActiveMiners);
+           end;
+           Sleep(1);
+         until ActiveMiners = 0;
          TestEnd := GetTickCount64;
          TestTime := (TestEnd-TestStart);
          CPUSpeed := HashesToTest/(testtime/1000);

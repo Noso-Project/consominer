@@ -59,6 +59,7 @@ var
   TargetHash : string = '00000000000000000000000000000000';
   TargetDiff : String = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
   FinishMiners : boolean = true;
+  ActiveMiners : integer;
   Miner_Counter : integer = 100000000;
   TestStart, TestEnd, TestTime : Int64;
   Miner_Prefix : String = '!!!!!!!!!';
