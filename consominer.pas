@@ -38,7 +38,7 @@ var
   cpucount : integer = 1;
   autostart : boolean = false;
   usegui    : boolean = false;
-  Counter, Counter2 : integer;
+  Counter, Counter2, counter3 : integer;
   ArrMiners : Array of TMinerThread;
   MainThread : TMainThread;
   CPUspeed: extended;
@@ -86,7 +86,15 @@ While not FinishMiners do
    BaseHash := GetHashToMine;
    ThisHash := NosoHash(BaseHash+Address);
    ThisDiff := CheckHashDiff(TargetHash,ThisHash);
-   if ThisDiff<TargetDiff then DoNothing;
+   if ThisDiff<TargetDiff then
+      begin
+      {
+      Miner := Parameter(Linea,5);
+      Hash  := Parameter(Linea,6);
+      block  := Parameter(Linea,7);
+      TimeStamp  := Parameter(Linea,8);
+      }
+      end;
    end;
 End;
 
@@ -233,7 +241,8 @@ REPEAT
             ArrMiners[counter2-1].FreeOnTerminate:=true;
             ArrMiners[counter2-1].Start;
             end;
-         ArrMiners[counter2-1].WaitFor;
+         For counter3 := 1 to counter do
+            ArrMiners[counter3].WaitFor;
          TestEnd := GetTickCount64;
          TestTime := (TestEnd-TestStart);
          CPUSpeed := HashesToTest/(testtime/1000);
@@ -274,7 +283,7 @@ REPEAT
       writeln('-----------------------------------------------------------------------------');
       Writeln(Format('Block: %d / Address: %s / Cores: %d',[Consensus.block,address,cpucount]));
       Writeln(Format('Time: %s / Target: %s',[ShowReadeableTime(UTCTime-StartMinningTimeStamp),Copy(TargetHash,1,10)]));
-      //write(Format('Target: %s / Best: %s / Speed: %s h/s',[Copy(TargetHash,1,10),Copy(TargetDiff,1,10),formatfloat('0.00',MinningSpeed)]),#13);
+
       Repeat
       until RunMiner = false;
       end

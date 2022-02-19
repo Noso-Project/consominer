@@ -479,7 +479,7 @@ if ( (LastSpeedUpdate+4 < UTCTime) and (not Testing) ) then
    LastSpeedHashes := Miner_Counter-LastSpeedCounter;
    MinningSpeed := LastSpeedHashes / 5;
    LastSpeedCounter := Miner_Counter;
-   write(Format('Age: %d / Best: %s / Speed: %s h/s',[UTCTime-Consensus.LBTimeEnd,Copy(TargetDiff,1,10),formatfloat('0.00',MinningSpeed)]),#13);
+   write(#13,Format('Age: %4d / Best: %10s / Speed: %5.2f H/s',[UTCTime-Consensus.LBTimeEnd,Copy(TargetDiff,1,10),MinningSpeed]));
    end;
 LeaveCriticalSection(CS_Counter);
 End;
