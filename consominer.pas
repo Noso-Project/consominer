@@ -45,6 +45,15 @@ var
   HashesToTest : integer = 5000;
   FirstRun : boolean = true;
 
+Function MinersCount():integer;
+var
+  Counter: Integer;
+Begin
+result := 0;
+for Counter:= 0 to MaxCPU - 1 do
+   if Assigned(ArrMiners[Counter]) then Inc(result);
+End;
+
 constructor TMinerThread.Create(CreateSuspended : boolean);
 Begin
 inherited Create(CreateSuspended);
@@ -116,7 +125,7 @@ repeat
             ArrMiners[counter2-1].FreeOnTerminate:=true;
             ArrMiners[counter2-1].Start;
             end;
-         writeln('-----------------------------------------------------------------------------');
+         writeln(#13,'-----------------------------------------------------------------------------');
          Writeln(Format('Block: %d / Address: %s / Cores: %d',[Consensus.block,address,cpucount]));
          Writeln(Format('Time: %s / Target: %s',[ShowReadeableTime(UTCTime-StartMinningTimeStamp),Copy(TargetHash,1,10)]));
          end;
@@ -241,8 +250,9 @@ REPEAT
             ArrMiners[counter2-1].FreeOnTerminate:=true;
             ArrMiners[counter2-1].Start;
             end;
-         For counter3 := 1 to counter do
-            ArrMiners[counter3].WaitFor;
+         Repeat
+         sleep(1)
+         until MinersCount = 0;
          TestEnd := GetTickCount64;
          TestTime := (TestEnd-TestStart);
          CPUSpeed := HashesToTest/(testtime/1000);
