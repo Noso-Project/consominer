@@ -48,12 +48,17 @@ Function HashMD5String(StringToHash:String):String;
 Procedure SetBlockEnd(value:int64);
 Function GetBlockEnd():int64;
 Function ShowReadeableTime(Totalseconds:integer):string;
+Procedure AddSolution(Texto:string);
+Function SolutionsLength():Integer;
+function GetSolution():String;
+Procedure SendSolution(Address,Hash:String);
 
 var
   ARRAY_Nodes : array of TNodeData;
   CS_Counter      : TRTLCriticalSection;
   CS_ThisBlockEnd : TRTLCriticalSection;
   CS_MinerData    : TRTLCriticalSection;
+  CS_Solutions    : TRTLCriticalSection;
   Consensus : TNodeData;
   CurrentBlockEnd : Int64 = 0;
   TargetHash : string = '00000000000000000000000000000000';
@@ -67,6 +72,9 @@ var
   RunMiner : Boolean = false;
   StartMinningTimeStamp:int64 = 0;
   MinningSpeed : extended = 0;
+  Solutions : Array of String;
+  SentThis : Integer = 0;
+  GoodThis : Integer = 0;
   LastSpeedCounter : integer = 100000000;
   LastSpeedUpdate : integer = 0;
   LastSpeedHashes : integer = 0;
@@ -352,6 +360,7 @@ EnterCriticalSection(CS_MinerData);
 TargetHash := Result.LBHash;
 TargetDiff := Result.NMSDiff;
 LeaveCriticalSection(CS_MinerData);
+SetBlockEnd(Result.LBTimeEnd);
 End;
 
 Procedure DoNothing();
@@ -365,7 +374,7 @@ var
   FirstChange : array[1..128] of string;
   finalHASH : string;
   ThisSum : integer;
-  charA,charB,charC,charD, CharE, CharF, CharG, CharH:integer;
+  charA,charB,charC,charD:integer;
   Filler : string = '%)+/5;=CGIOSYaegk';
 
   Function GetClean(number:integer):integer;
@@ -481,8 +490,9 @@ if ( (LastSpeedUpdate+4 < UTCTime) and (not Testing) ) then
    LastSpeedUpdate := UTCTime;
    LastSpeedHashes := Miner_Counter-LastSpeedCounter;
    MinningSpeed := LastSpeedHashes / 5;
+   if MinningSpeed <0 then MinningSpeed := 0;
    LastSpeedCounter := Miner_Counter;
-   write(#13,Format('Age: %4d / Best: %10s / Speed: %5.2f H/s',[UTCTime-Consensus.LBTimeEnd,Copy(TargetDiff,1,10),MinningSpeed]));
+   write(#13,Format('Age: %4d / Best: %10s / Speed: %8.2f H/s / %d/%d',[UTCTime-Consensus.LBTimeEnd,Copy(TargetDiff,1,10),MinningSpeed,sentthis,GoodThis]));
    end;
 LeaveCriticalSection(CS_Counter);
 End;
@@ -519,6 +529,81 @@ remain := remain mod 60;
 seconds := remain;
 if Days > 0 then Result:= Format('%dd %.2d:%.2d:%.2d', [Days, Hours, Minutes, Seconds])
 else Result:= Format('%.2d:%.2d:%.2d', [Hours, Minutes, Seconds]);
+End;
+
+Procedure AddSolution(Texto:string);
+Begin
+EnterCriticalSection(CS_Solutions);
+Insert(Texto,Solutions,length(Solutions));
+LeaveCriticalSection(CS_Solutions);
+End;
+
+Function SolutionsLength():Integer;
+Begin
+EnterCriticalSection(CS_Solutions);
+Result := length(Solutions);
+LeaveCriticalSection(CS_Solutions);
+End;
+
+function GetSolution():String;
+Begin
+result := '';
+EnterCriticalSection(CS_Solutions);
+if length(Solutions)>0 then
+   begin
+   result := Solutions[0];
+   delete(Solutions,0,1);
+   end;
+LeaveCriticalSection(CS_Solutions);
+End;
+
+Procedure SendSolution(Address, Hash:String);
+var
+  TCPClient : TidTCPClient;
+  Node,port : integer;
+  Host : string;
+  Resultado : string;
+  Trys : integer = 0;
+  Success, WasGood : boolean;
+  NewDiff : String;
+Begin
+Node := Random(LEngth(Array_Nodes));
+Host := Array_Nodes[Node].host;
+Port := Array_Nodes[Node].port;
+TCPClient := TidTCPClient.Create(nil);
+TCPclient.Host:=host;
+TCPclient.Port:=port;
+TCPclient.ConnectTimeout:= 3000;
+TCPclient.ReadTimeout:=3000;
+REPEAT
+Success := false;
+Trys :=+1;
+TRY
+TCPclient.Connect;
+TCPclient.IOHandler.WriteLn('BESTHASH 1 2 3 4 '+address+' '+Hash+' '+IntToStr(Consensus.block+1)+' '+UTCTime.ToString);
+Resultado := TCPclient.IOHandler.ReadLn(IndyTextEncoding_UTF8);
+TCPclient.Disconnect();
+Success := true;
+EXCEPT on E:Exception do
+   begin
+   Success := false;
+   end;
+END{try};
+UNTIL ((Success) or (Trys = 5));
+TCPClient.Free;
+If success then
+   begin
+   SentThis := SentThis+1;
+   NewDiff := Parameter (Resultado,1);
+   If ((NewDiff<Targetdiff) and (length(NewDiff)= 32)) then
+      begin
+      EnterCriticalSection(CS_MinerData);
+      TargetDiff := NewDiff;
+      LeaveCriticalSection(CS_MinerData);
+      end;
+   WasGood := StrToBoolDef(Parameter(Resultado,0),false);
+   if WasGood then GoodThis := GoodThis+1;
+   end;
 End;
 
 END.// END UNIT

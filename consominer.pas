@@ -105,6 +105,7 @@ While not FinishMiners do
    ThisDiff := CheckHashDiff(TargetHash,ThisHash);
    if ThisDiff<TargetDiff then
       begin
+      AddSolution(BaseHash);
       {
       Miner := Parameter(Linea,5);
       Hash  := Parameter(Linea,6);
@@ -116,26 +117,40 @@ While not FinishMiners do
 End;
 
 procedure TMainThread.Execute;
+var
+  currentblock : integer;
 Begin
 repeat
    if runminer then
       begin
+      if SolutionsLength>0 then
+         begin
+         Repeat
+         SendSolution(Address, GetSolution);
+         until solutionslength = 0 ;
+         end;
+      Currentblock := Consensus.block;
       if ( (UTCTime >= GetBlockEnd+10) and (LastSync+30<UTCTime) ) then
          begin
-         FinishMiners := true;
          LastSync := UTCTime;
          Consensus := Getconsensus;
-         FinishMiners := false;
-         Miner_Counter := 1000000000;
-         for counter2 := 1 to CPUCount do
+         if Consensus.block <> CurrentBlock then
             begin
-            ArrMiners[counter2-1] := TMinerThread.Create(true);
-            ArrMiners[counter2-1].FreeOnTerminate:=true;
-            ArrMiners[counter2-1].Start;
+            FinishMiners := true;
+            WaitAllMinersOff();
+            SentThis := 0;
+            FinishMiners := false;
+            Miner_Counter := 1000000000;
+            for counter2 := 1 to CPUCount do
+               begin
+               ArrMiners[counter2-1] := TMinerThread.Create(true);
+               ArrMiners[counter2-1].FreeOnTerminate:=true;
+               ArrMiners[counter2-1].Start;
+               writeln(#13,'-----------------------------------------------------------------------------');
+               Writeln(Format('Block: %d / Address: %s / Cores: %d',[Consensus.block,address,cpucount]));
+               Writeln(Format('Time: %s / Target: %s',[ShowReadeableTime(UTCTime-StartMinningTimeStamp),Copy(TargetHash,1,10)]));
+               end;
             end;
-         writeln(#13,'-----------------------------------------------------------------------------');
-         Writeln(Format('Block: %d / Address: %s / Cores: %d',[Consensus.block,address,cpucount]));
-         Writeln(Format('Time: %s / Target: %s',[ShowReadeableTime(UTCTime-StartMinningTimeStamp),Copy(TargetHash,1,10)]));
          end;
       end;
    sleep(1000);
@@ -201,7 +216,10 @@ begin
 InitCriticalSection(CS_Counter);
 InitCriticalSection(CS_ThisBlockEnd);
 InitCriticalSection(CS_MinerData);
+InitCriticalSection(CS_Solutions);
+
 SetLEngth(ARRAY_Nodes,0);
+SetLEngth(Solutions,0);
 MaxCPU:= {$IFDEF UNIX}GetSystemThreadCount{$ELSE}GetCPUCount{$ENDIF};
 SetLength(ArrMiners,MaxCPU);
 if not FileExists('consominer.cfg') then savedata('N2kFAtGWLb57Qz91sexZSAnYwA3T7Cy',MaxCPU,false,false);
@@ -291,6 +309,7 @@ REPEAT
       FinishMiners := false;
       Miner_Counter := 1000000000;
       StartMinningTimeStamp := UTCTime;
+      SentThis := 0;
       for counter2 := 1 to CPUCount do
          begin
          ArrMiners[counter2-1] := TMinerThread.Create(true);
@@ -317,5 +336,6 @@ UNTIL Uppercase(command) = 'EXIT';
 DoneCriticalSection(CS_Counter);
 DoneCriticalSection(CS_ThisBlockEnd);
 DoneCriticalSection(CS_MinerData);
+DoneCriticalSection(CS_Solutions);
 end.// end program
 
