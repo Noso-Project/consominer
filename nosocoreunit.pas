@@ -39,7 +39,7 @@ Function Parameter(LineText:String;ParamNumber:int64):String;
 function SaveData(address:string;cpucount:integer;autostart, usegui:boolean):boolean;
 function LoadSeedNodes():integer;
 Function GetConsensus():TNodeData;
-Procedure SyncNodes();
+Function SyncNodes():integer;
 Procedure DoNothing();
 Function NosoHash(source:string):string;
 Function CheckHashDiff(Target,ThisHash:String):string;
@@ -220,8 +220,8 @@ result := '';
 TCPClient := TidTCPClient.Create(nil);
 TCPclient.Host:=host;
 TCPclient.Port:=StrToIntDef(port,8080);
-TCPclient.ConnectTimeout:= 1000;
-TCPclient.ReadTimeout:=1000;
+TCPclient.ConnectTimeout:= 3000;
+TCPclient.ReadTimeout:=3000;
 TRY
 TCPclient.Connect;
 TCPclient.IOHandler.WriteLn('NODESTATUS');
@@ -234,16 +234,18 @@ END{try};
 TCPClient.Free;
 End;
 
-Procedure SyncNodes();
+Function SyncNodes():integer;
 var
   counter : integer = 0;
   Linea : string;
 Begin
+Result := 0;
 For counter := 0 to length(ARRAY_Nodes)-1 do
    begin
    linea := GetNodeStatus(ARRAY_Nodes[counter].host,ARRAY_Nodes[counter].port.ToString);
    if linea <> '' then
       begin
+      Result :=+1;
       ARRAY_Nodes[counter].block:=Parameter(Linea,2).ToInteger();
       ARRAY_Nodes[counter].LBHash:=Parameter(Linea,10);
       ARRAY_Nodes[counter].NMSDiff:=Parameter(Linea,11);

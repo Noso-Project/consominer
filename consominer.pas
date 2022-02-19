@@ -45,13 +45,21 @@ var
   HashesToTest : integer = 5000;
   FirstRun : boolean = true;
 
-Function MinersCount():integer;
+Function WaitAllMinersOff():boolean;
 var
   Counter: Integer;
+  Resultado : integer = 0;
 Begin
-result := 0;
-for Counter:= 0 to MaxCPU - 1 do
-   if Assigned(ArrMiners[Counter]) then result := result+1;
+Result := false;
+for Counter:= 0 to Length(ArrMiners)-1 do
+   if Assigned(ArrMiners[Counter]) then
+      begin
+      TRY
+      ArrMiners[Counter].WaitFor;
+      EXCEPT ON E:EXCEPTION do DoNothing;
+      END; {Try}
+      end;
+Result := true;
 End;
 
 constructor TMinerThread.Create(CreateSuspended : boolean);
@@ -244,20 +252,14 @@ REPEAT
          FinishMiners := false;
          Testing:= true;
          Miner_Counter := 1000000000-(HashesToTest*counter);
+         ActiveMiners := counter;
          for counter2 := 1 to counter do
             begin
             ArrMiners[counter2-1] := TMinerThread.Create(true);
             ArrMiners[counter2-1].FreeOnTerminate:=true;
             ArrMiners[counter2-1].Start;
             end;
-         repeat
-           ActiveMiners:= 0;
-           for counter3:= 0 to MaxCPU-1 do
-           begin
-             if Assigned(ArrMiners[counter3]) then Inc(ActiveMiners);
-           end;
-           Sleep(1);
-         until ActiveMiners = 0;
+         WaitAllMinersOff();
          TestEnd := GetTickCount64;
          TestTime := (TestEnd-TestStart);
          CPUSpeed := HashesToTest/(testtime/1000);
