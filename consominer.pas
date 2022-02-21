@@ -11,8 +11,6 @@ uses
 
 Type
   TMinerThread = class(TThread)
-    private
-      procedure UpdateScreen;
     protected
       procedure Execute; override;
     public
@@ -20,10 +18,6 @@ Type
     end;
 
   TMainThread = class(TThread)
-    private
-      procedure DoSomething;
-      procedure UpdateBlockTime;
-      procedure UpdateMainnetData;
     protected
       procedure Execute; override;
     public
@@ -31,14 +25,7 @@ Type
     end;
 
 var
-  command:string;
-  MaxCPU : integer;
-  // User options
-  address : string = 'N2kFAtGWLb57Qz91sexZSAnYwA3T7Cy';
-  cpucount : integer = 1;
-  autostart : boolean = false;
-  usegui    : boolean = false;
-  Counter, Counter2, counter3 : integer;
+
   ArrMiners : Array of TMinerThread;
   MainThread : TMainThread;
   CPUspeed: extended;
@@ -48,7 +35,6 @@ var
 Function WaitAllMinersOff():boolean;
 var
   Counter: Integer;
-  Resultado : integer = 0;
 Begin
 Result := false;
 for Counter:= 0 to Length(ArrMiners)-1 do
@@ -74,44 +60,22 @@ inherited Create(CreateSuspended);
 FreeOnTerminate := True;
 End;
 
-procedure TMinerThread.UpdateScreen();
-Begin
-DoNothing();
-End;
-
-procedure TMainThread.DoSomething();
-Begin
-
-End;
-
-procedure TMainThread.UpdateBlockTime();
-Begin
-
-End;
-
-procedure TMainThread.UpdateMainnetData();
-Begin
-
-End;
-
 procedure TMinerThread.Execute;
 var
   BaseHash, ThisHash, ThisDiff : string;
+  ThisSolution : TSolution;
 Begin
-While not FinishMiners do
+While ((not FinishMiners) and (not PauseMiners)) do
    begin
    BaseHash := GetHashToMine;
    ThisHash := NosoHash(BaseHash+Address);
    ThisDiff := CheckHashDiff(TargetHash,ThisHash);
    if ThisDiff<TargetDiff then
       begin
-      AddSolution(BaseHash);
-      {
-      Miner := Parameter(Linea,5);
-      Hash  := Parameter(Linea,6);
-      block  := Parameter(Linea,7);
-      TimeStamp  := Parameter(Linea,8);
-      }
+      ThisSolution.Target:=TargetHash;
+      ThisSolution.Hash  :=BaseHash;
+      ThisSolution.Diff  :=ThisDiff;
+      AddSolution(ThisSolution);
       end;
    end;
 End;
@@ -120,13 +84,14 @@ procedure TMainThread.Execute;
 var
   currentblock : integer;
 Begin
-repeat
+REPEAT
+   CheckLogs;
    if runminer then
       begin
       if SolutionsLength>0 then
          begin
          Repeat
-         SendSolution(Address, GetSolution);
+         SendSolution(GetSolution);
          until solutionslength = 0 ;
          end;
       Currentblock := Consensus.block;
@@ -143,72 +108,18 @@ repeat
             Miner_Counter := 1000000000;
             writeln(#13,'-----------------------------------------------------------------------------');
             Writeln(Format('Block: %d / Address: %s / Cores: %d',[Consensus.block,address,cpucount]));
-            Writeln(Format('Time: %s / Target: %s',[ShowReadeableTime(UTCTime-StartMinningTimeStamp),Copy(TargetHash,1,10)]));
+            Writeln(Format('Time: %s / Target: %s',[ShowReadeableTime(UTCTime-StartMiningTimeStamp),Copy(TargetHash,1,10)]));
             for counter2 := 1 to CPUCount do
                begin
                ArrMiners[counter2-1] := TMinerThread.Create(true);
                ArrMiners[counter2-1].FreeOnTerminate:=true;
                ArrMiners[counter2-1].Start;
                end;
-
             end;
          end;
       end;
    sleep(1000);
-until FinishProgram;
-End;
-
-Procedure LoadData();
-var
-  datafile : textfile;
-  linea : string;
-Begin
-Assignfile(datafile, 'consominer.cfg');
-TRY
-reset(datafile);
-EXCEPT ON E:EXCEPTION do
-   begin
-   writeln('Error opening data file: '+E.Message);
-   exit
-   end
-END {TRY};
-TRY
-while not eof(datafile) do
-   begin
-   readln(datafile,linea);
-   if uppercase(Parameter(linea,0)) = 'ADDRESS' then address := Parameter(linea,1);
-   if uppercase(Parameter(linea,0)) = 'CPU' then cpucount := StrToIntDef(Parameter(linea,1),1);
-   if uppercase(Parameter(linea,0)) = 'AUTOSTART' then autostart := StrToBoolDef(Parameter(linea,1),false);
-   if uppercase(Parameter(linea,0)) = 'USEGUI' then usegui := StrToBoolDef(Parameter(linea,1),false);
-   end;
-EXCEPT ON E:EXCEPTION do
-   begin
-   writeln('Error reading data file: '+E.Message);
-   exit
-   end
-END {TRY};
-TRY
-CloseFile(datafile);
-EXCEPT ON E:EXCEPTION do
-   begin
-   writeln('Error closing data file: '+E.Message);
-   exit
-   end
-END {TRY};
-End;
-
-Procedure ShowHelp();
-Begin
-Writeln('Available commands (Caps unsensitive)');
-Writeln('help                   -> Shows this info');
-Writeln('address {address}      -> The miner address');
-Writeln('cpu {number}           -> Number of cores for minning');
-Writeln('autostart {true/false} -> Start minning directly');
-Writeln('minerid [1-8100]       -> Optional unique miner ID');
-Writeln('test                   -> Speed test from 1 to Max CPUs');
-Writeln('mine                   -> Start minning with current settings');
-Writeln('exit                   -> Close the app');
-Writeln('');
+UNTIL FinishProgram;
 End;
 
 {$R *.res}
@@ -218,15 +129,25 @@ InitCriticalSection(CS_Counter);
 InitCriticalSection(CS_ThisBlockEnd);
 InitCriticalSection(CS_MinerData);
 InitCriticalSection(CS_Solutions);
-
+InitCriticalSection(CS_Log);
+Assignfile(datafile, 'consominer.cfg');
+Assignfile(logfile, 'log.txt');
+Assignfile(OldLogFile, 'oldlogs.txt');
+If not ResetLogs then
+   begin
+   writeln('Error reseting log files');
+   Exit;
+   end;
 SetLEngth(ARRAY_Nodes,0);
 SetLEngth(Solutions,0);
+SetLEngth(LogLines,0);
 MaxCPU:= {$IFDEF UNIX}GetSystemThreadCount{$ELSE}GetCPUCount{$ENDIF};
-SetLength(ArrMiners,MaxCPU);
-if not FileExists('consominer.cfg') then savedata('N2kFAtGWLb57Qz91sexZSAnYwA3T7Cy',MaxCPU,false,false);
+SetLength(ArrMiners,MaxCPU);  // Avoid overclocking
+if not FileExists('consominer.cfg') then savedata();
 loaddata();
 LoadSeedNodes;
 writeln('Consominer Nosohash 1.0');
+writeln('Built using FPC '+fpcVersion);
 Writeln(GetOs+' --- '+MaxCPU.ToString+' CPUs --- '+Length(array_nodes).ToString+' Nodes');
 writeln('Using '+address+' with '+CPUCount.ToString+' cores');
 Write('Syncing...',#13);
@@ -253,14 +174,14 @@ REPEAT
    if Uppercase(Parameter(command,0)) = 'ADDRESS' then
       begin
       address := parameter(command,1);
-      savedata(address,CPUCount,Autostart,usegui);
-      writeln ('Minning address set to : '+address);
+      savedata();
+      writeln ('Mining address set to : '+address);
       end
    else if Uppercase(Parameter(command,0)) = 'CPU' then
       begin
       cpucount := StrToIntDef(parameter(command,1),CPUCount);
-      savedata(address,CPUCount,Autostart,usegui);
-      writeln ('Minning CPUs set to : '+CPUCount.ToString);
+      savedata();
+      writeln ('Mining CPUs set to : '+CPUCount.ToString);
       end
    else if Uppercase(Parameter(command,0)) = 'TEST' then
       begin
@@ -293,23 +214,23 @@ REPEAT
    else if Uppercase(Parameter(command,0)) = 'AUTOSTART' then
       begin
       autostart := StrToBoolDef(parameter(command,1),autostart);
-      savedata(address,CPUCount,Autostart,usegui);
+      savedata();
       writeln ('Autostart set to : '+BoolToStr(autostart,true));
       end
-   else if Uppercase(Parameter(command,0)) = 'USEGUI' then
+   else if Uppercase(Parameter(command,0)) = 'MINERID' then
       begin
-      usegui := StrToBoolDef(parameter(command,1),usegui);
-      savedata(address,CPUCount,Autostart,usegui);
-      writeln ('UseGUI set to : '+BoolToStr(usegui,true));
+      MinerID := StrToIntDef(parameter(command,1),MinerID);
+      savedata();
+      writeln ('MinerID set to : '+MinerID.ToString);
       end
    else if Uppercase(Parameter(command,0)) = 'MINE' then
       begin
       RunMiner := true;
-      writeln('Minning with '+CPUcount.ToString+' CPUs');
+      writeln('Mining with '+CPUcount.ToString+' CPUs');
       writeln('Press CTRL+C to finish');
       FinishMiners := false;
       Miner_Counter := 1000000000;
-      StartMinningTimeStamp := UTCTime;
+      StartMiningTimeStamp := UTCTime;
       SentThis := 0;
       for counter2 := 1 to CPUCount do
          begin
@@ -319,24 +240,19 @@ REPEAT
          end;
       writeln('-----------------------------------------------------------------------------');
       Writeln(Format('Block: %d / Address: %s / Cores: %d',[Consensus.block,address,cpucount]));
-      Writeln(Format('Time: %s / Target: %s',[ShowReadeableTime(UTCTime-StartMinningTimeStamp),Copy(TargetHash,1,10)]));
+      Writeln(Format('Time: %s / Target: %s',[ShowReadeableTime(UTCTime-StartMiningTimeStamp),Copy(TargetHash,1,10)]));
 
       Repeat
       until RunMiner = false;
       end
-   else if Uppercase(Parameter(command,0)) = 'HELP' then
-      begin
-      ShowHelp;
-      end
-   else
-      begin
-      donothing; // invalid command
-      end;
-
-UNTIL Uppercase(command) = 'EXIT';
+   else if Uppercase(Parameter(command,0)) = 'HELP' then ShowHelp
+   else if Uppercase(Parameter(command,0)) = 'SETTINGS' then ShowSettings
+   else if Command <> '' then writeln('Invalid command');
+UNTIL Uppercase(Command) = 'EXIT';
 DoneCriticalSection(CS_Counter);
 DoneCriticalSection(CS_ThisBlockEnd);
 DoneCriticalSection(CS_MinerData);
 DoneCriticalSection(CS_Solutions);
+DoneCriticalSection(CS_Log);
 end.// end program
 

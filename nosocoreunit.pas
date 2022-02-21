@@ -14,6 +14,12 @@ type
     Diff : string;
     end;
 
+  TSolution = Packed record
+    Hash   : string;
+    Target : string;
+    Diff   : string;
+    end;
+
   TConsensusData = packed record
    Value : string[40];
    count : integer;
@@ -36,7 +42,10 @@ type
 Function GetOS():string;
 function UTCTime():int64;
 Function Parameter(LineText:String;ParamNumber:int64):String;
-function SaveData(address:string;cpucount:integer;autostart, usegui:boolean):boolean;
+Procedure ShowHelp();
+Procedure ShowSettings();
+Procedure LoadData();
+function SaveData():boolean;
 function LoadSeedNodes():integer;
 Function GetConsensus():TNodeData;
 Function SyncNodes():integer;
@@ -48,31 +57,57 @@ Function HashMD5String(StringToHash:String):String;
 Procedure SetBlockEnd(value:int64);
 Function GetBlockEnd():int64;
 Function ShowReadeableTime(Totalseconds:integer):string;
-Procedure AddSolution(Texto:string);
+Procedure AddSolution(Data:TSolution);
 Function SolutionsLength():Integer;
-function GetSolution():String;
-Procedure SendSolution(Address,Hash:String);
+function GetSolution():TSolution;
+Procedure SendSolution(Data:TSolution);
+Function ResetLogs():boolean;
+Procedure ToLog(Texto:String);
+Procedure CheckLogs();
+Function SoloMining():Boolean;
+
+CONST
+  fpcVersion = {$I %FPCVERSION%};
 
 var
+  command:string;
+  MaxCPU : integer = 1;
+  DataFile, LogFile, OldLogFile : TextFile;
+  Counter, Counter2 : integer;
+
+  // Arrays
   ARRAY_Nodes : array of TNodeData;
+  LogLines    : array of string;
+  Solutions   : Array of TSolution;
+
+  // User options
+  source : string = 'mainnet';
+  address : string = 'N2kFAtGWLb57Qz91sexZSAnYwA3T7Cy';
+  cpucount : integer = 1;
+  autostart : boolean = false;
+  minerid    : Integer = 0;
+
+  // Critical sections
   CS_Counter      : TRTLCriticalSection;
   CS_ThisBlockEnd : TRTLCriticalSection;
   CS_MinerData    : TRTLCriticalSection;
   CS_Solutions    : TRTLCriticalSection;
+  CS_Log          : TRTLCriticalSection;
+
   Consensus : TNodeData;
   CurrentBlockEnd : Int64 = 0;
   TargetHash : string = '00000000000000000000000000000000';
   TargetDiff : String = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
   FinishMiners : boolean = true;
+  PauseMiners : Boolean = false;
   ActiveMiners : integer;
   Miner_Counter : integer = 100000000;
   TestStart, TestEnd, TestTime : Int64;
   Miner_Prefix : String = '!!!!!!!!!';
   Testing : Boolean = false;
   RunMiner : Boolean = false;
-  StartMinningTimeStamp:int64 = 0;
-  MinningSpeed : extended = 0;
-  Solutions : Array of String;
+  StartMiningTimeStamp:int64 = 0;
+  MiningSpeed : extended = 0;
   SentThis : Integer = 0;
   GoodThis : Integer = 0;
   LastSpeedCounter : integer = 100000000;
@@ -93,13 +128,8 @@ var
 implementation
 
 Function GetOS():string;
-var
-  bitness : string='';
-  Function Is64Bit: Boolean;
-  Begin
-    Result:= SizeOf(Pointer) > 4;
-  End;
 Begin
+Result := 'Unknown';
 {$IFDEF Linux}
 result := 'Linux';
 {$ENDIF}
@@ -107,12 +137,11 @@ result := 'Linux';
 result := 'Windows';
 {$ENDIF}
 {$IFDEF WIN32}
-bitness := '32';
+result := Result+'32';
 {$ENDIF}
 {$IFDEF WIN64}
-bitness := '64';
+result := Result+'64';
 {$ENDIF}
-//Result := Result+Bitness;
 End;
 
 // Returns the UTCTime
@@ -179,18 +208,91 @@ if temp = ' ' then temp := '';
 Result := Temp;
 End;
 
-function SaveData(address:string;cpucount:integer;autostart,usegui:boolean):boolean;
-var
-  datafile : textfile;
+Procedure ShowHelp();
+Begin
+WriteLn('');
+Writeln('Available commands (Caps unsensitive)');
+WriteLn('');
+Writeln('help                   -> Shows this info');
+Writeln('settings               -> Show the current miner settings');
+Writeln('source {source}        -> The miner address');
+Writeln('address {address}      -> The miner address');
+Writeln('cpu {number}           -> Number of cores for Mining');
+Writeln('autostart {true/false} -> Start Mining directly');
+Writeln('minerid [1-8100]       -> Optional unique miner ID');
+Writeln('test                   -> Speed test from 1 to Max CPUs');
+Writeln('mine                   -> Start Mining with current settings');
+Writeln('exit                   -> Close the app');
+Writeln('');
+End;
+
+Procedure ShowSettings();
+Begin
+WriteLn('');
+Writeln('Current settings');
+WriteLn('');
+WriteLn('Source    : '+source);
+WriteLn('Address   : '+address);
+WriteLn('CPUs      : '+CPUCount.ToString);
+WriteLn('AutoStart : '+BoolToStr(AutoStart,true));
+WriteLn('MinerID   : '+MinerID.ToString);
+WriteLn();
+End;
+
+function SaveData():boolean;
 Begin
 result := true;
-Assignfile(datafile, 'consominer.cfg');
+TRY
 rewrite(datafile);
-writeln(datafile,'address '+address);
-writeln(datafile,'cpu '+cpucount.ToString);
-writeln(datafile,'autostart '+BoolToStr(autostart,true));
-writeln(datafile,'usegui '+BoolToStr(usegui,true));
+writeln(datafile,'source '+source);
+writeln(datafile,'address '+Address);
+writeln(datafile,'cpu '+CPUCount.ToString);
+writeln(datafile,'autostart '+BoolToStr(AutoStart,true));
+writeln(datafile,'minerid '+MinerID.ToString);
 CloseFile(datafile);
+EXCEPT ON E:EXCEPTION do
+   begin
+   writeln('Error opening data file: '+E.Message);
+   end
+END {TRY};
+End;
+
+Procedure LoadData();
+var
+  linea : string;
+Begin
+TRY
+reset(datafile);
+EXCEPT ON E:EXCEPTION do
+   begin
+   writeln('Error opening data file: '+E.Message);
+   exit
+   end
+END {TRY};
+TRY
+while not eof(datafile) do
+   begin
+   readln(datafile,linea);
+   if uppercase(Parameter(linea,0)) = 'SOURCE' then Source := Parameter(linea,1);
+   if uppercase(Parameter(linea,0)) = 'ADDRESS' then Address := Parameter(linea,1);
+   if uppercase(Parameter(linea,0)) = 'CPU' then CPUCount := StrToIntDef(Parameter(linea,1),1);
+   if uppercase(Parameter(linea,0)) = 'AUTOSTART' then AutoStart := StrToBoolDef(Parameter(linea,1),false);
+   if uppercase(Parameter(linea,0)) = 'MINERID' then MinerID := StrToIntDef(Parameter(linea,1),MinerID);
+   end;
+EXCEPT ON E:EXCEPTION do
+   begin
+   writeln('Error reading data file: '+E.Message);
+   exit
+   end
+END {TRY};
+TRY
+CloseFile(datafile);
+EXCEPT ON E:EXCEPTION do
+   begin
+   writeln('Error closing data file: '+E.Message);
+   exit
+   end
+END {TRY};
 End;
 
 // Fill the nodes array with seed nodes data
@@ -308,7 +410,7 @@ var
 
 Begin
 SyncNodes;
-//result := default(TNodeData);
+result := default(TNodeData);
 // Get the consensus block number
 SetLength(ArrT,0);
 For counter := 0 to length (ARRAY_Nodes)-1 do
@@ -436,7 +538,6 @@ End;
 
 Function CheckHashDiff(Target,ThisHash:String):string;
 var
-   ThisChar : string = '';
    counter : integer;
    ValA, ValB, Diference : Integer;
    ResChar : String;
@@ -489,10 +590,10 @@ if ( (LastSpeedUpdate+4 < UTCTime) and (not Testing) ) then
    begin
    LastSpeedUpdate := UTCTime;
    LastSpeedHashes := Miner_Counter-LastSpeedCounter;
-   MinningSpeed := LastSpeedHashes / 5;
-   if MinningSpeed <0 then MinningSpeed := 0;
+   MiningSpeed := LastSpeedHashes / 5;
+   if MiningSpeed <0 then MiningSpeed := 0;
    LastSpeedCounter := Miner_Counter;
-   write(#13,Format('Age: %4d / Best: %10s / Speed: %8.2f H/s / %d/%d',[UTCTime-Consensus.LBTimeEnd,Copy(TargetDiff,1,10),MinningSpeed,sentthis,GoodThis]));
+   write(#13,Format('Age: %4d / Best: %10s / Speed: %8.2f H/s / %d/%d',[UTCTime-Consensus.LBTimeEnd,Copy(TargetDiff,1,10),MiningSpeed,sentthis,GoodThis]));
    end;
 LeaveCriticalSection(CS_Counter);
 End;
@@ -531,10 +632,22 @@ if Days > 0 then Result:= Format('%dd %.2d:%.2d:%.2d', [Days, Hours, Minutes, Se
 else Result:= Format('%.2d:%.2d:%.2d', [Hours, Minutes, Seconds]);
 End;
 
-Procedure AddSolution(Texto:string);
+Procedure AddSolution(Data:TSolution);
 Begin
 EnterCriticalSection(CS_Solutions);
-Insert(Texto,Solutions,length(Solutions));
+if SoloMining then
+   begin
+   if length(Solutions) = 0 then Insert(Data,Solutions,length(Solutions))
+   else
+      begin
+      If Data.Diff<Solutions[0].Diff then
+         Solutions[0] := Data;
+      end;
+   end
+else
+   begin
+   Insert(Data,Solutions,length(Solutions));
+   end;
 LeaveCriticalSection(CS_Solutions);
 End;
 
@@ -545,9 +658,9 @@ Result := length(Solutions);
 LeaveCriticalSection(CS_Solutions);
 End;
 
-function GetSolution():String;
+function GetSolution():TSolution;
 Begin
-result := '';
+result := Default(TSolution);
 EnterCriticalSection(CS_Solutions);
 if length(Solutions)>0 then
    begin
@@ -557,7 +670,7 @@ if length(Solutions)>0 then
 LeaveCriticalSection(CS_Solutions);
 End;
 
-Procedure SendSolution(Address, Hash:String);
+Procedure SendSolution(Data:TSolution);
 var
   TCPClient : TidTCPClient;
   Node,port : integer;
@@ -580,7 +693,7 @@ Success := false;
 Trys :=+1;
 TRY
 TCPclient.Connect;
-TCPclient.IOHandler.WriteLn('BESTHASH 1 2 3 4 '+address+' '+Hash+' '+IntToStr(Consensus.block+1)+' '+UTCTime.ToString);
+TCPclient.IOHandler.WriteLn('BESTHASH 1 2 3 4 '+address+' '+Data.Hash+' '+IntToStr(Consensus.block+1)+' '+UTCTime.ToString);
 Resultado := TCPclient.IOHandler.ReadLn(IndyTextEncoding_UTF8);
 TCPclient.Disconnect();
 Success := true;
@@ -604,6 +717,66 @@ If success then
    WasGood := StrToBoolDef(Parameter(Resultado,0),false);
    if WasGood then GoodThis := GoodThis+1;
    end;
+End;
+
+Function SoloMining():Boolean;
+Begin
+Result := true;
+if Uppercase(Source)<> 'MAINNET' then result := false;
+End;
+
+Procedure ToLog(Texto:String);
+Begin
+EnterCriticalSection(CS_Log);
+Insert(Texto,LogLines,Length(LogLines));
+LeaveCriticalSection(CS_Log);
+End;
+
+Function ResetLogs():boolean;
+var
+  ThisLine : string;
+Begin
+result := true;
+TRY
+If not FileExists('oldlogs.txt') then
+   Begin
+   Rewrite(OldLogFile);
+   CloseFile(OldLogFile);
+   end;
+If not FileExists('log.txt') then
+   Begin
+   Rewrite(logfile);
+   CloseFile(logfile);
+   end;
+Reset(logfile);
+Append(OldLogFile);
+While not Eof(LogFile) do
+   begin
+   ReadLn(LogFile,ThisLine);
+   WriteLn(OldLogFile,ThisLine);
+   end;
+CloseFile(LogFile);
+CloseFile(OldLogFile);
+Rewrite(LogFile);
+CloseFile(LogFile);
+EXCEPT ON E:Exception do Result := false;
+END {Try};
+End;
+
+Procedure CheckLogs();
+Begin
+EnterCriticalSection(CS_Log);
+If length(LogLines) > 0 then
+   begin
+   Reset(LogFile);
+   While Length(LogLines)>0 do
+      begin
+      WriteLn(LogFile,DateToStr(now)+' '+LogLines[0]);
+      Delete(LogLines,0,1);
+      end;
+   CloseFile(LogFile);
+   end;
+LeaveCriticalSection(CS_Log);
 End;
 
 END.// END UNIT
