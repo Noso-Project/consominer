@@ -51,14 +51,16 @@ var
   ThisPrefix : string = '';
   Counter : int64 = 100000000;
   EndThisThread : boolean = false;
+  TempHashes : integer = 0;
+  LastRefresh : int64 = 0;
 Begin
-MyID := ThreadPrefix;
+MyID := ThreadPrefix-1;
 ThisPrefix := GetPrefix(MinerID)+GetPrefix(MyID)+'!!!!!';
 While ((not FinishMiners) and (not EndThisThread)) do
    begin
    //BaseHash := GetHashToMine;
    BaseHash := ThisPrefix+Counter.ToString;
-   inc(Counter);
+   inc(Counter);inc(TempHashes);
    ThisHash := NosoHash(BaseHash+Address);
    ThisDiff := CheckHashDiff(TargetHash,ThisHash);
    if ThisDiff<TargetDiff then
@@ -67,6 +69,12 @@ While ((not FinishMiners) and (not EndThisThread)) do
       ThisSolution.Hash  :=BaseHash;
       ThisSolution.Diff  :=ThisDiff;
       AddSolution(ThisSolution);
+      end;
+   if LastRefresh+4<UTCTime then
+      begin
+      LastRefresh := UTCTime;
+      ArrHashes[MyID] := TempHashes;
+      TempHashes := 0;
       end;
    if ((Counter = 100000000+HashesToTest) and (Testing)) then EndThisThread := true;
    end;
@@ -94,6 +102,7 @@ While not FinishProgram do
          Begin
          FinishMiners := true;
          PauseMiners := true;
+         ResetHashCounter;
          end;
       if ( (BlockAge >= 610) and (LastSync+10<UTCTime) ) then
          begin
@@ -122,10 +131,8 @@ While not FinishProgram do
          end;
       if ( (LastSpeedUpdate+4 < UTCTime) and (not Testing) ) then
          begin
-         LastSpeedHashes := Miner_Counter-LastSpeedCounter;
-         MiningSpeed := LastSpeedHashes / (UTCTime-LastSpeedUpdate);
+         MiningSpeed := GetTotalHashes / (UTCTime-LastSpeedUpdate);
          if MiningSpeed <0 then MiningSpeed := 0;
-         LastSpeedCounter := Miner_Counter;
          if SyncErrorStr <> '' then write(#13,Format('%s',[SyncErrorStr]))
          else write(#13,Format('[%d] Age: %4d / Best: %10s / Speed: %8.2f H/s / {%d}',[OpenThreads,BlockAge,Copy(TargetDiff,1,10),MiningSpeed,GoodThis]));
          LastSpeedUpdate := UTCTime;
@@ -157,10 +164,11 @@ SetLEngth(RejectedSols,0);
 SetLEngth(LogLines,0);
 MaxCPU:= {$IFDEF UNIX}GetSystemThreadCount{$ELSE}GetCPUCount{$ENDIF};
 SetLength(ArrMiners,MaxCPU);  // Avoid overclocking
+SetLength(ArrHashes,MaxCPU);
 if not FileExists('consominer.cfg') then savedata();
 loaddata();
 LoadSeedNodes;
-writeln('Consominer Nosohash 1.0');
+writeln('Consominer Nosohash 1.0a');
 writeln('Built using FPC '+fpcVersion);
 Writeln(GetOs+' --- '+MaxCPU.ToString+' CPUs --- '+Length(array_nodes).ToString+' Nodes');
 writeln('Using '+address+' with '+CPUCount.ToString+' cores');
@@ -204,9 +212,11 @@ REPEAT
          ActiveMiners := counter;
          for counter2 := 1 to counter do
             begin
+            ThreadPrefix := counter2;
             ArrMiners[counter2-1] := TMinerThread.Create(true);
             ArrMiners[counter2-1].FreeOnTerminate:=true;
             ArrMiners[counter2-1].Start;
+            sleep(1);
             end;
          OpenThreads := counter;
          REPEAT
@@ -251,6 +261,7 @@ REPEAT
       writeln('Press CTRL+C to finish');
       ToLog('********************************************************************************');
       ToLog('Mining session opened');
+      ResetHashCounter;
       FinishMiners := false;
       Miner_Counter := 100000000;
       LastSpeedCounter := 100000000;

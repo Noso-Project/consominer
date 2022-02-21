@@ -67,6 +67,8 @@ Procedure CheckLogs();
 Function SoloMining():Boolean;
 function GetPrefix(NumberID:integer):string;
 Function BlockAge():integer;
+Procedure ResetHashCounter();
+function GetTotalHashes : integer;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
@@ -84,6 +86,7 @@ var
   LogLines    : array of string;
   Solutions   : Array of TSolution;
   RejectedSols: Array of TSolution;
+  ArrHashes : Array of integer;
 
   // User options
   source : string = 'mainnet';
@@ -697,8 +700,7 @@ End;
 Procedure SendSolution(Data:TSolution);
 var
   TCPClient : TidTCPClient;
-  Node,port : integer;
-  Host : string;
+  Node : integer;
   Resultado : string;
   Trys : integer = 0;
   Success, WasGood : boolean;
@@ -837,6 +839,23 @@ End;
 Function BlockAge():integer;
 Begin
 Result := UTCTime-Consensus.LBTimeEnd+1;
+End;
+
+Procedure ResetHashCounter();
+var
+  temp : integer;
+Begin
+for temp := 0 to MaxCPU-1 do
+   ArrHashes[temp] := 0;
+End;
+
+function GetTotalHashes : integer;
+var
+  temp : integer;
+Begin
+Result := 0;
+for temp := 0 to MaxCPU-1 do
+   Result := Result+ArrHashes[temp];
 End;
 
 END.// END UNIT
