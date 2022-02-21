@@ -48,7 +48,7 @@ Procedure LoadData();
 function SaveData():boolean;
 function LoadSeedNodes():integer;
 Function GetConsensus():TNodeData;
-Function CheckSource():Integer;
+Function CheckSource():Boolean;
 Function SyncNodes():integer;
 Procedure DoNothing();
 Function NosoHash(source:string):string;
@@ -61,6 +61,7 @@ Function ShowReadeableTime(Totalseconds:integer):string;
 Procedure AddSolution(Data:TSolution);
 Function SolutionsLength():Integer;
 function GetSolution():TSolution;
+Procedure PushSolution(Data:TSolution);
 Procedure SendSolution(Data:TSolution);
 Function ResetLogs():boolean;
 Procedure ToLog(Texto:String);
@@ -99,6 +100,8 @@ var
   // Mining
   OpenThreads : integer = 0;
   ExInfo      : string;
+  SourceStr   : string;
+  SyncErrorStr   : String = '';
   Consensus : TNodeData;
   CurrentBlockEnd : Int64 = 0;
   TargetHash : string = '00000000000000000000000000000000';
@@ -360,7 +363,7 @@ For counter := 0 to length(ARRAY_Nodes)-1 do
    linea := GetNodeStatus(ARRAY_Nodes[counter].host,ARRAY_Nodes[counter].port.ToString);
    if linea <> '' then
       begin
-      Result :=+1;
+      Result :=Result+1;
       ARRAY_Nodes[counter].block:=Parameter(Linea,2).ToInteger();
       ARRAY_Nodes[counter].LBHash:=Parameter(Linea,10);
       ARRAY_Nodes[counter].NMSDiff:=Parameter(Linea,11);
@@ -414,7 +417,6 @@ var
    End;
 
 Begin
-SyncNodes;
 result := default(TNodeData);
 // Get the consensus block number
 SetLength(ArrT,0);
@@ -470,9 +472,26 @@ LeaveCriticalSection(CS_MinerData);
 SetBlockEnd(Result.LBTimeEnd);
 End;
 
-Function CheckSource():Integer;
+Function CheckSource():Boolean;
+var
+  ReachedNodes : integer = 0;
 Begin
-If solomining then Consensus := GetConsensus;
+Result := False;
+If solomining then
+   begin
+   ReachedNodes := SyncNodes;
+   if ReachedNodes > (Length(array_nodes) div 2)+1 then
+      begin
+      Consensus := GetConsensus;
+      SyncErrorStr := '';
+      result := true;
+      end
+   else
+      begin
+      if not runminer then WriteLn(Format('Synced failed %d/%d',[ReachedNodes,Length(array_nodes)]))
+      else SyncErrorStr := 'Connection error. Check your internet connection                               ';
+      end;
+   end;
 End;
 
 Procedure DoNothing();
@@ -671,6 +690,11 @@ if length(Solutions)>0 then
 LeaveCriticalSection(CS_Solutions);
 End;
 
+Procedure PushSolution(Data:TSolution);
+Begin
+If SoloMining then SendSolution(Data);
+End;
+
 Procedure SendSolution(Data:TSolution);
 var
   TCPClient : TidTCPClient;
@@ -680,6 +704,7 @@ var
   Trys : integer = 0;
   Success, WasGood : boolean;
   NewDiff : String;
+  ErrorCode : integer = 0;
 Begin
 Node := Random(LEngth(Array_Nodes));
 Host := Array_Nodes[Node].host;
@@ -716,7 +741,21 @@ If success then
       LeaveCriticalSection(CS_MinerData);
       end;
    WasGood := StrToBoolDef(Parameter(Resultado,0),false);
-   if WasGood then GoodThis := GoodThis+1;
+   if WasGood then
+      begin
+      GoodThis := GoodThis+1;
+      ToLog('Submited solution: '+Data.Diff);
+      end
+   else
+      begin
+      ErrorCode := StrToIntDef(Parameter(Resultado,2),0);
+      ToLog('Rejected Solution: '+ErrorCode.ToString);
+      end;
+   end
+else
+   begin
+   ToLog('Unable to send solution');
+   AddSolution(Data);
    end;
 End;
 
@@ -766,9 +805,9 @@ End;
 
 Procedure CheckLogs();
 Begin
-EnterCriticalSection(CS_Log);
 If length(LogLines) > 0 then
    begin
+   EnterCriticalSection(CS_Log);
    TRY
    Append(LogFile);
    While Length(LogLines)>0 do
@@ -780,8 +819,8 @@ If length(LogLines) > 0 then
    EXCEPT ON E:EXCEPTION DO
       WriteLn(E.Message);
    END; {Try}
+   LeaveCriticalSection(CS_Log);
    end;
-LeaveCriticalSection(CS_Log);
 End;
 
 END.// END UNIT

@@ -60,20 +60,16 @@ var
 Begin
 While not FinishMiners do
    begin
-   if not PauseMiners then
+   BaseHash := GetHashToMine;
+   ThisHash := NosoHash(BaseHash+Address);
+   ThisDiff := CheckHashDiff(TargetHash,ThisHash);
+   if ThisDiff<TargetDiff then
       begin
-      BaseHash := GetHashToMine;
-      ThisHash := NosoHash(BaseHash+Address);
-      ThisDiff := CheckHashDiff(TargetHash,ThisHash);
-      if ThisDiff<TargetDiff then
-         begin
-         ThisSolution.Target:=TargetHash;
-         ThisSolution.Hash  :=BaseHash;
-         ThisSolution.Diff  :=ThisDiff;
-         AddSolution(ThisSolution);
-         end;
-      end
-   else sleep(10);
+      ThisSolution.Target:=TargetHash;
+      ThisSolution.Hash  :=BaseHash;
+      ThisSolution.Diff  :=ThisDiff;
+      AddSolution(ThisSolution);
+      end;
    end;
 End;
 
@@ -81,7 +77,8 @@ procedure TMainThread.Execute;
 var
   currentblock : integer;
 Begin
-REPEAT
+While not FinishProgram do
+   begin
    CheckLogs;
    if runminer then
       begin
@@ -89,12 +86,16 @@ REPEAT
       if SolutionsLength>0 then
          begin
          Repeat
-         SendSolution(GetSolution);
+         PushSolution(GetSolution);
          until solutionslength = 0 ;
          end;
       Currentblock := Consensus.block;
-      if ( (UTCTime >= GetBlockEnd-15) and (TargetDiff<MaxDiff) ) then PauseMiners := true;
-      if ( (UTCTime >= GetBlockEnd+10) and (LastSync+30<UTCTime) ) then
+      if ( (UTCTime >= GetBlockEnd-15) and (TargetDiff<MaxDiff) ) then
+         Begin
+         FinishMiners := true;
+         PauseMiners := true;
+         end;
+      if ( (UTCTime >= GetBlockEnd+10) and (LastSync+10<UTCTime) ) then
          begin
          LastSync := UTCTime;
          CheckSource;
@@ -104,10 +105,17 @@ REPEAT
             SentThis := 0;
             Miner_Counter := 100000000;
             LastSpeedCounter := 100000000;
+            FinishMiners := false;
+            PauseMiners := false;
+            for counter2 := 1 to CPUCount do
+                begin
+                ArrMiners[counter2-1] := TMinerThread.Create(true);
+                ArrMiners[counter2-1].FreeOnTerminate:=true;
+                ArrMiners[counter2-1].Start;
+                end;
             writeln(#13,'-----------------------------------------------------------------------------');
             Writeln(Format('Block: %d / Address: %s / Cores: %d',[Consensus.block,address,cpucount]));
-            Writeln(Format('Time: %s / Target: %s',[ShowReadeableTime(UTCTime-StartMiningTimeStamp),Copy(TargetHash,1,10)]));
-            PauseMiners := false;
+            Writeln(Format('%s / Target: %s / %s',[ShowReadeableTime(UTCTime-StartMiningTimeStamp),Copy(TargetHash,1,10),SourceStr]));
             end;
          end;
       if ( (LastSpeedUpdate+4 < UTCTime) and (not Testing) ) then
@@ -118,11 +126,12 @@ REPEAT
          if MiningSpeed <0 then MiningSpeed := 0;
          LastSpeedCounter := Miner_Counter;
          if PauseMiners then ExInfo := 'P' else ExInfo := '';
-         write(#13,Format('[%d]%s Age: %4d / Best: %10s / Speed: %8.2f H/s / %d/%d',[OpenThreads,ExInfo,UTCTime-Consensus.LBTimeEnd,Copy(TargetDiff,1,10),MiningSpeed,sentthis,GoodThis]));
+         if SyncErrorStr <> '' then write(#13,Format('%s',[SyncErrorStr]))
+         else write(#13,Format('[%d]%s Age: %4d / Best: %10s / Speed: %8.2f H/s / %d/%d',[OpenThreads,ExInfo,UTCTime-Consensus.LBTimeEnd,Copy(TargetDiff,1,10),MiningSpeed,sentthis,GoodThis]));
          end;
       end;
-   sleep(200);
-UNTIL FinishProgram;
+   sleep(1000);
+   end;
 End;
 
 {$R *.res}
@@ -225,13 +234,16 @@ REPEAT
       end
    else if Uppercase(Parameter(command,0)) = 'MINE' then
       begin
-      Write('Syncing...',#13);
-      CheckSource;
+      Repeat
+         Write('Syncing...',#13);
+         sleep(100);
+      until CheckSource;
       Writeln(format('Block: %d / Age: %d secs / Hash: %s',[Consensus.block,UTCTime-Consensus.LBTimeEnd,Consensus.LBHash]));
       LastSync := UTCTime;
       SetBlockEnd(Consensus.LBTimeEnd+600);
       RunMiner := true;
       writeln('Mining with '+CPUcount.ToString+' CPUs');
+      if SoloMining then SourceStr := 'Mainnet' else SourceStr := '?????';
       writeln('Press CTRL+C to finish');
       ToLog('********************************************************************************');
       ToLog('Mining session opened');
@@ -247,7 +259,7 @@ REPEAT
          end;
       writeln('-----------------------------------------------------------------------------');
       Writeln(Format('Block: %d / Address: %s / Cores: %d',[Consensus.block,address,cpucount]));
-      Writeln(Format('Time: %s / Target: %s',[ShowReadeableTime(UTCTime-StartMiningTimeStamp),Copy(TargetHash,1,10)]));
+      Writeln(Format('%s / Target: %s / %s',[ShowReadeableTime(UTCTime-StartMiningTimeStamp),Copy(TargetHash,1,10),SourceStr]));
 
       Repeat
       until RunMiner = false;
