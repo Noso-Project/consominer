@@ -108,18 +108,18 @@ While not FinishProgram do
             OpenThreads := CPUCount;
             writeln(#13,'-----------------------------------------------------------------------------');
             Writeln(Format('Block: %d / Address: %s / Cores: %d',[Consensus.block,address,cpucount]));
-            Writeln(Format('%s / Target: %s / %s',[ShowReadeableTime(UTCTime-StartMiningTimeStamp),Copy(TargetHash,1,10),SourceStr]));
+            Writeln(Format('%s / Target: %s / %s / {%d}' ,[UpTime,Copy(TargetHash,1,10),SourceStr,GoodTotal]));
             end;
          end;
       if ( (LastSpeedUpdate+4 < UTCTime) and (not Testing) ) then
          begin
-         LastSpeedUpdate := UTCTime;
          LastSpeedHashes := Miner_Counter-LastSpeedCounter;
-         MiningSpeed := LastSpeedHashes / 5;
+         MiningSpeed := LastSpeedHashes / (UTCTime-LastSpeedUpdate);
          if MiningSpeed <0 then MiningSpeed := 0;
          LastSpeedCounter := Miner_Counter;
          if SyncErrorStr <> '' then write(#13,Format('%s',[SyncErrorStr]))
-         else write(#13,Format('[%d]%s Age: %4d / Best: %10s / Speed: %8.2f H/s / %d/%d',[OpenThreads,ExInfo,UTCTime-Consensus.LBTimeEnd,Copy(TargetDiff,1,10),MiningSpeed,sentthis,GoodThis]));
+         else write(#13,Format('[%d] Age: %4d / Best: %10s / Speed: %8.2f H/s / {%d}',[OpenThreads,BlockAge,Copy(TargetDiff,1,10),MiningSpeed,GoodThis]));
+         LastSpeedUpdate := UTCTime;
          end;
       end;
    sleep(1000);
@@ -250,7 +250,7 @@ REPEAT
       GoodThis := 0;
       writeln('-----------------------------------------------------------------------------');
       Writeln(Format('Block: %d / Address: %s / Cores: %d',[Consensus.block, address,cpucount]));
-      Writeln(Format('%s / Target: %s / %s',[ShowReadeableTime(UTCTime-StartMiningTimeStamp),Copy(TargetHash,1,10),SourceStr]));
+      Writeln(Format('%s / Target: %s / %s / {%d}' ,[UpTime,Copy(TargetHash,1,10),SourceStr,GoodTotal]));
       for counter2 := 1 to CPUCount do
          begin
          ArrMiners[counter2-1] := TMinerThread.Create(true);

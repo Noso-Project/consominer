@@ -55,7 +55,7 @@ Function NosoHash(source:string):string;
 Function CheckHashDiff(Target,ThisHash:String):string;
 function GetHashToMine():String;
 Function HashMD5String(StringToHash:String):String;
-Function ShowReadeableTime(Totalseconds:integer):string;
+Function UpTime():string;
 Procedure AddSolution(Data:TSolution);
 Function SolutionsLength():Integer;
 function GetSolution():TSolution;
@@ -100,7 +100,6 @@ var
 
   // Mining
   OpenThreads : integer = 0;
-  ExInfo      : string;
   SourceStr   : string;
   SyncErrorStr   : String = '';
   Consensus : TNodeData;
@@ -121,6 +120,7 @@ var
   MiningSpeed : extended = 0;
   SentThis : Integer = 0;
   GoodThis : Integer = 0;
+  GoodTotal : Integer = 0;
   LastSpeedCounter : integer = 100000000;
   LastSpeedUpdate : integer = 0;
   LastSpeedHashes : integer = 0;
@@ -471,12 +471,12 @@ For counter := 0 to length (ARRAY_Nodes)-1 do
 
 //Write(format('(%d - %d)',[Result.block, CurrentBlock]));
 
-if Result.block <> CurrentBlock then
+if Result.block > CurrentBlock then
    begin
    EnterCriticalSection(CS_MinerData);
    TargetHash := Result.LBHash;
    TargetDiff := Result.NMSDiff;
-   CurrentBlock := Consensus.block;
+   CurrentBlock := Result.block;
    NewBlock := true;
    LeaveCriticalSection(CS_MinerData);
    end;
@@ -634,10 +634,11 @@ Begin
 result := Uppercase(MD5Print(MD5String(StringToHash)));
 end;
 
-Function ShowReadeableTime(Totalseconds:integer):string;
+Function UpTime():string;
 var
-  days,hours,minutes,seconds, remain : integer;
+  TotalSeconds,days,hours,minutes,seconds, remain : integer;
 Begin
+Totalseconds := UTCTime-StartMiningTimeStamp;
 Days := Totalseconds div 86400;
 remain := Totalseconds mod 86400;
 hours := remain div 3600;
@@ -704,14 +705,13 @@ var
   ErrorCode : integer = 0;
 Begin
 Node := Random(LEngth(Array_Nodes));
-Host := Array_Nodes[Node].host;
-Port := Array_Nodes[Node].port;
 TCPClient := TidTCPClient.Create(nil);
-TCPclient.Host:=host;
-TCPclient.Port:=port;
 TCPclient.ConnectTimeout:= 3000;
 TCPclient.ReadTimeout:=3000;
 REPEAT
+Node := Node+1; If Node >= LEngth(Array_Nodes) then Node := 0;
+TCPclient.Host:=Array_Nodes[Node].host;
+TCPclient.Port:=Array_Nodes[Node].port;
 Success := false;
 Trys :=+1;
 TRY
@@ -740,6 +740,7 @@ If success then
    WasGood := StrToBoolDef(Parameter(Resultado,0),false);
    if WasGood then
       begin
+      GoodTotal := GoodTotal+1;
       GoodThis := GoodThis+1;
       ToLog('Submited solution: '+Data.Diff);
       end
@@ -752,6 +753,7 @@ If success then
 else
    begin
    ToLog('Unable to send solution');
+   SyncErrorStr := 'Connection error. Check your internet connection                               ';
    Insert(Data,RejectedSols,Length(RejectedSols));
    end;
 End;
