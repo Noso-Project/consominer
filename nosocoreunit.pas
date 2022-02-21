@@ -100,6 +100,7 @@ var
 
   // Mining
   OpenThreads : integer = 0;
+  ThreadPrefix : integer = 0;
   SourceStr   : string;
   SyncErrorStr   : String = '';
   Consensus : TNodeData;

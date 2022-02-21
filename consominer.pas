@@ -47,10 +47,18 @@ procedure TMinerThread.Execute;
 var
   BaseHash, ThisHash, ThisDiff : string;
   ThisSolution : TSolution;
+  MyID : integer;
+  ThisPrefix : string = '';
+  Counter : int64 = 100000000;
+  EndThisThread : boolean = false;
 Begin
-While not FinishMiners do
+MyID := ThreadPrefix;
+ThisPrefix := GetPrefix(MinerID)+GetPrefix(MyID)+'!!!!!';
+While ((not FinishMiners) and (not EndThisThread)) do
    begin
-   BaseHash := GetHashToMine;
+   //BaseHash := GetHashToMine;
+   BaseHash := ThisPrefix+Counter.ToString;
+   inc(Counter);
    ThisHash := NosoHash(BaseHash+Address);
    ThisDiff := CheckHashDiff(TargetHash,ThisHash);
    if ThisDiff<TargetDiff then
@@ -60,6 +68,7 @@ While not FinishMiners do
       ThisSolution.Diff  :=ThisDiff;
       AddSolution(ThisSolution);
       end;
+   if ((Counter = 100000000+HashesToTest) and (Testing)) then EndThisThread := true;
    end;
 dec(OpenThreads);
 End;
@@ -253,9 +262,11 @@ REPEAT
       Writeln(Format('%s / Target: %s / %s / {%d}' ,[UpTime,Copy(TargetHash,1,10),SourceStr,GoodTotal]));
       for counter2 := 1 to CPUCount do
          begin
+         ThreadPrefix := counter2;
          ArrMiners[counter2-1] := TMinerThread.Create(true);
          ArrMiners[counter2-1].FreeOnTerminate:=true;
          ArrMiners[counter2-1].Start;
+         sleep(1);
          end;
       OpenThreads := CPUCount;
       Repeat
