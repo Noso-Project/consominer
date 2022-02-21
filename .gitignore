@@ -2,6 +2,8 @@
 /backup
 /locale
 consominer
+log.text
+oldlogs.txt
 consominer.cfg
 consominer.exe
 consominer.dbg
