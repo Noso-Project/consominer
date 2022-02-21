@@ -48,6 +48,7 @@ Procedure LoadData();
 function SaveData():boolean;
 function LoadSeedNodes():integer;
 Function GetConsensus():TNodeData;
+Function CheckSource():Integer;
 Function SyncNodes():integer;
 Procedure DoNothing();
 Function NosoHash(source:string):string;
@@ -68,6 +69,7 @@ Function SoloMining():Boolean;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
+  MaxDiff    = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
 
 var
   command:string;
@@ -94,10 +96,13 @@ var
   CS_Solutions    : TRTLCriticalSection;
   CS_Log          : TRTLCriticalSection;
 
+  // Mining
+  OpenThreads : integer = 0;
+  ExInfo      : string;
   Consensus : TNodeData;
   CurrentBlockEnd : Int64 = 0;
   TargetHash : string = '00000000000000000000000000000000';
-  TargetDiff : String = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
+  TargetDiff : String = MaxDiff;
   FinishMiners : boolean = true;
   PauseMiners : Boolean = false;
   ActiveMiners : integer;
@@ -465,6 +470,11 @@ LeaveCriticalSection(CS_MinerData);
 SetBlockEnd(Result.LBTimeEnd);
 End;
 
+Function CheckSource():Integer;
+Begin
+If solomining then Consensus := GetConsensus;
+End;
+
 Procedure DoNothing();
 Begin
 // Reminder for later adition
@@ -578,22 +588,13 @@ function GetHashToMine():String;
 
 Begin
 EnterCriticalSection(CS_Counter);
-Result := Miner_Prefix+IntToStr(Miner_Counter);
+Result := Miner_Prefix+Miner_Counter.ToString;
 Miner_Counter := Miner_Counter+1;
 If Miner_Counter>999999999 then
    begin
    Miner_Counter := 100000000;
    IncreaseHashSeed(Miner_Prefix);
    if Testing then FinishMiners := true;
-   end;
-if ( (LastSpeedUpdate+4 < UTCTime) and (not Testing) ) then
-   begin
-   LastSpeedUpdate := UTCTime;
-   LastSpeedHashes := Miner_Counter-LastSpeedCounter;
-   MiningSpeed := LastSpeedHashes / 5;
-   if MiningSpeed <0 then MiningSpeed := 0;
-   LastSpeedCounter := Miner_Counter;
-   write(#13,Format('Age: %4d / Best: %10s / Speed: %8.2f H/s / %d/%d',[UTCTime-Consensus.LBTimeEnd,Copy(TargetDiff,1,10),MiningSpeed,sentthis,GoodThis]));
    end;
 LeaveCriticalSection(CS_Counter);
 End;
@@ -728,7 +729,7 @@ End;
 Procedure ToLog(Texto:String);
 Begin
 EnterCriticalSection(CS_Log);
-Insert(Texto,LogLines,Length(LogLines));
+Insert(DateTimeToStr(now)+' '+Texto,LogLines,Length(LogLines));
 LeaveCriticalSection(CS_Log);
 End;
 
@@ -768,13 +769,17 @@ Begin
 EnterCriticalSection(CS_Log);
 If length(LogLines) > 0 then
    begin
-   Reset(LogFile);
+   TRY
+   Append(LogFile);
    While Length(LogLines)>0 do
       begin
-      WriteLn(LogFile,DateToStr(now)+' '+LogLines[0]);
+      WriteLn(LogFile,LogLines[0]);
       Delete(LogLines,0,1);
       end;
    CloseFile(LogFile);
+   EXCEPT ON E:EXCEPTION DO
+      WriteLn(E.Message);
+   END; {Try}
    end;
 LeaveCriticalSection(CS_Log);
 End;
