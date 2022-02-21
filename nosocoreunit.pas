@@ -55,8 +55,6 @@ Function NosoHash(source:string):string;
 Function CheckHashDiff(Target,ThisHash:String):string;
 function GetHashToMine():String;
 Function HashMD5String(StringToHash:String):String;
-Procedure SetBlockEnd(value:int64);
-Function GetBlockEnd():int64;
 Function ShowReadeableTime(Totalseconds:integer):string;
 Procedure AddSolution(Data:TSolution);
 Function SolutionsLength():Integer;
@@ -67,10 +65,13 @@ Function ResetLogs():boolean;
 Procedure ToLog(Texto:String);
 Procedure CheckLogs();
 Function SoloMining():Boolean;
+function GetPrefix(NumberID:integer):string;
+Function BlockAge():integer;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
   MaxDiff    = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
+  HasheableChars = '!"#$%&'')*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~ ';
 
 var
   command:string;
@@ -82,6 +83,7 @@ var
   ARRAY_Nodes : array of TNodeData;
   LogLines    : array of string;
   Solutions   : Array of TSolution;
+  RejectedSols: Array of TSolution;
 
   // User options
   source : string = 'mainnet';
@@ -92,7 +94,6 @@ var
 
   // Critical sections
   CS_Counter      : TRTLCriticalSection;
-  CS_ThisBlockEnd : TRTLCriticalSection;
   CS_MinerData    : TRTLCriticalSection;
   CS_Solutions    : TRTLCriticalSection;
   CS_Log          : TRTLCriticalSection;
@@ -104,6 +105,8 @@ var
   SyncErrorStr   : String = '';
   Consensus : TNodeData;
   CurrentBlockEnd : Int64 = 0;
+  CurrentBlock : integer = 0;
+  NewBlock     : boolean = false;
   TargetHash : string = '00000000000000000000000000000000';
   TargetDiff : String = MaxDiff;
   FinishMiners : boolean = true;
@@ -465,11 +468,19 @@ For counter := 0 to length (ARRAY_Nodes)-1 do
    AddValue(ARRAY_Nodes[counter].LBTimeEnd.ToString);
    Result.LBTimeEnd := GetHighest.ToInt64;
    End;
-EnterCriticalSection(CS_MinerData);
-TargetHash := Result.LBHash;
-TargetDiff := Result.NMSDiff;
-LeaveCriticalSection(CS_MinerData);
-SetBlockEnd(Result.LBTimeEnd);
+
+//Write(format('(%d - %d)',[Result.block, CurrentBlock]));
+
+if Result.block <> CurrentBlock then
+   begin
+   EnterCriticalSection(CS_MinerData);
+   TargetHash := Result.LBHash;
+   TargetDiff := Result.NMSDiff;
+   CurrentBlock := Consensus.block;
+   NewBlock := true;
+   LeaveCriticalSection(CS_MinerData);
+   end;
+
 End;
 
 Function CheckSource():Boolean;
@@ -480,7 +491,7 @@ Result := False;
 If solomining then
    begin
    ReachedNodes := SyncNodes;
-   if ReachedNodes > (Length(array_nodes) div 2)+1 then
+   if ReachedNodes >= (Length(array_nodes) div 2)+1 then
       begin
       Consensus := GetConsensus;
       SyncErrorStr := '';
@@ -623,20 +634,6 @@ Begin
 result := Uppercase(MD5Print(MD5String(StringToHash)));
 end;
 
-Procedure SetBlockEnd(value:int64);
-Begin
-EnterCriticalSection(CS_ThisBlockEnd);
-CurrentBlockEnd := value;
-LeaveCriticalSection(CS_ThisBlockEnd);
-End;
-
-Function GetBlockEnd():int64;
-Begin
-EnterCriticalSection(CS_ThisBlockEnd);
-result := CurrentBlockEnd;
-LeaveCriticalSection(CS_ThisBlockEnd);
-End;
-
 Function ShowReadeableTime(Totalseconds:integer):string;
 var
   days,hours,minutes,seconds, remain : integer;
@@ -755,7 +752,7 @@ If success then
 else
    begin
    ToLog('Unable to send solution');
-   AddSolution(Data);
+   Insert(Data,RejectedSols,Length(RejectedSols));
    end;
 End;
 
@@ -821,6 +818,22 @@ If length(LogLines) > 0 then
    END; {Try}
    LeaveCriticalSection(CS_Log);
    end;
+End;
+
+function GetPrefix(NumberID:integer):string;
+var
+  firstchar, secondchar : integer;
+  HashChars : integer;
+Begin
+HashChars :=  length(HasheableChars)-1;
+firstchar := NumberID div HashChars;
+secondchar := NumberID mod HashChars;
+result := HasheableChars[firstchar+1]+HasheableChars[secondchar+1]+'!!!!!!!';
+End;
+
+Function BlockAge():integer;
+Begin
+Result := UTCTime-Consensus.LBTimeEnd+1;
 End;
 
 END.// END UNIT
