@@ -119,9 +119,11 @@ While not FinishProgram do
             PauseMiners := false;
             for counter2 := 1 to CPUCount do
                 begin
+                ThreadPrefix := counter2;
                 ArrMiners[counter2-1] := TMinerThread.Create(true);
                 ArrMiners[counter2-1].FreeOnTerminate:=true;
                 ArrMiners[counter2-1].Start;
+                Sleep(1);
                 end;
             OpenThreads := CPUCount;
             writeln(#13,'-----------------------------------------------------------------------------');
@@ -144,7 +146,7 @@ End;
 
 {$R *.res}
 
-begin
+BEGIN // Program Start
 InitCriticalSection(CS_Counter);
 InitCriticalSection(CS_MinerData);
 InitCriticalSection(CS_Solutions);
@@ -287,12 +289,12 @@ REPEAT
    else if Uppercase(Parameter(command,0)) = 'HELP' then ShowHelp
    else if Uppercase(Parameter(command,0)) = 'SETTINGS' then ShowSettings
    else if Uppercase(Parameter(command,0)) = 'SOURCE' then WriteLn('Not implemented')
-   else if Uppercase(Parameter(command,0)) = 'COUNT' then Writeln('Active threads : '+OpenThreads.ToString)
+   //else if Uppercase(Parameter(command,0)) = 'COUNT' then Writeln('Active threads : '+OpenThreads.ToString) // debugonly
    else if Command <> '' then writeln('Invalid command');
 UNTIL Uppercase(Command) = 'EXIT';
 DoneCriticalSection(CS_Counter);
 DoneCriticalSection(CS_MinerData);
 DoneCriticalSection(CS_Solutions);
 DoneCriticalSection(CS_Log);
-end.// end program
+END.// END PROGRAM
 
