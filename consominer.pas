@@ -6,7 +6,7 @@ uses
   {$IFDEF UNIX}
    cthreads,
   {$ENDIF}
-  Classes, sysutils, nosocoreunit, strutils , UTF8Process
+  Classes, sysutils, nosocoreunit {$IFDEF UNIX}, UTF8Process{$ENDIF}
   { you can add units after this };
 
 Type
