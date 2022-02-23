@@ -1,3 +1,7 @@
+Version 0.4
+
+- Fixed last block miner detection.
+
 Version 0.3
 
 - Session mined blocks displayed on output.

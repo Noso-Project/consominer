@@ -84,7 +84,7 @@ function ClearLeadingCeros(numero:string):string;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
-  AppVersion = '0.2';
+  AppVersion = '0.4';
   MaxDiff    = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
   HasheableChars = '!"#$%&'')*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~ ';
   B58Alphabet : string = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -392,6 +392,7 @@ For counter := 0 to length(ARRAY_Nodes)-1 do
       ARRAY_Nodes[counter].LBHash:=Parameter(Linea,10);
       ARRAY_Nodes[counter].NMSDiff:=Parameter(Linea,11);
       ARRAY_Nodes[counter].LBTimeEnd:=StrToInt64Def(Parameter(Linea,12),0);
+      ARRAY_Nodes[counter].LBMiner:=Parameter(Linea,13);
       end;
    end;
 End;
@@ -511,7 +512,8 @@ if Result.block > CurrentBlock then
       WriteLn('* You mined block '+MyLastMinedBlock.ToString+' *');
       WriteLn('*************************');
       ToLog('Mined block '+MyLastMinedBlock.ToString);
-      end;
+      end
+   else WriteLn(#13,Format('Block : %d / Miner : %s',[Result.block,Result.LBMiner]));
    TargetHash := Result.LBHash;
    TargetDiff := Result.NMSDiff;
    CurrentBlock := Result.block;
@@ -876,8 +878,6 @@ Result := UTCTime-Consensus.LBTimeEnd+1;
 End;
 
 Procedure AddIntervalHashes(hashes:int64);
-var
-  temp : integer;
 Begin
 EnterCriticalSection(CS_Interval);
 ThreadsIntervalHashes := ThreadsIntervalHashes+hashes;
@@ -885,8 +885,6 @@ LeaveCriticalSection(CS_Interval);
 End;
 
 function GetTotalHashes : integer;
-var
-  temp : integer;
 Begin
 EnterCriticalSection(CS_Interval);
 Result := ThreadsIntervalHashes;
