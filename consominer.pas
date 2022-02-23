@@ -183,7 +183,11 @@ REPEAT
    if FirstRun then
       begin
       FirstRun := false;
-      if AutoStart then Command := 'MINE';
+      if AutoStart then //Command := 'MINE';
+         begin
+         if IsValidHashAddress(Address) then Command := 'MINE'
+         else WriteLn('Invalid miner address');
+         end;
       end;
    if command = '' then
       begin
@@ -192,9 +196,13 @@ REPEAT
       end;
    if Uppercase(Parameter(command,0)) = 'ADDRESS' then
       begin
-      address := parameter(command,1);
-      savedata();
-      writeln ('Mining address set to : '+address);
+      if IsValidHashAddress(Parameter(command,0)) then
+         begin
+         address := parameter(command,1);
+         savedata();
+         writeln ('Mining address set to : '+address);
+         end
+      else WriteLn('Invalid miner address');
       end
    else if Uppercase(Parameter(command,0)) = 'CPU' then
       begin
@@ -243,12 +251,22 @@ REPEAT
       end
    else if Uppercase(Parameter(command,0)) = 'MINERID' then
       begin
-      MinerID := StrToIntDef(parameter(command,1),MinerID);
-      savedata();
-      writeln ('MinerID set to : '+MinerID.ToString);
+      if  StrToIntDef(parameter(command,1),-1)<0 then
+         WriteLn('MinerID must be a number between 0-8100')
+      else
+         begin
+         MinerID := StrToIntDef(parameter(command,1),MinerID);
+         savedata();
+         writeln ('MinerID set to : '+MinerID.ToString);
+         end;
       end
    else if Uppercase(Parameter(command,0)) = 'MINE' then
       begin
+      if not isvalidHashAddress(Address) then
+         begin
+         WriteLn('Invalid miner address');
+         continue;
+         end;
       Repeat
          Write('Syncing...',#13);
          sleep(100);

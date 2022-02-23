@@ -1,0 +1,5 @@
+Version 0.2
+
+- Implemented miner address verification.
+- Improved help command display.
+- Implemented last block mined detection.

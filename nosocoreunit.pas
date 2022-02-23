@@ -37,7 +37,13 @@ type
    LBHash : String[32];
    NMSDiff : String[32];
    LBTimeEnd : Int64;
+   LBMiner   : String;
    end;
+
+  DivResult = packed record
+     cociente : string[255];
+     residuo : string[255];
+     end;
 
 Function GetOS():string;
 function UTCTime():int64;
@@ -69,12 +75,19 @@ function GetPrefix(NumberID:integer):string;
 Function BlockAge():integer;
 Procedure ResetHashCounter();
 function GetTotalHashes : integer;
+function IsValidHashAddress(Address:String):boolean;
+function IsValid58(base58text:string):boolean;
+function BMDecTo58(numero:string):string;
+function BMB58resumen(numero58:string):string;
+Function BMDividir(Numero1,Numero2:string):DivResult;
+function ClearLeadingCeros(numero:string):string;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
-  AppVersion = '0.1';
+  AppVersion = '0.2';
   MaxDiff    = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
   HasheableChars = '!"#$%&'')*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~ ';
+  B58Alphabet : string = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 
 var
   command:string;
@@ -105,6 +118,8 @@ var
   // Mining
   OpenThreads : integer = 0;
   ThreadPrefix : integer = 0;
+  MyLastMinedBlock : integer = 0;
+  TotalMinedBlocks : integer = 0;
   SourceStr   : string;
   SyncErrorStr   : String = '';
   Consensus : TNodeData;
@@ -231,11 +246,11 @@ Writeln('Available commands (Caps unsensitive)');
 WriteLn('');
 Writeln('help                   -> Shows this info');
 Writeln('settings               -> Show the current miner settings');
-Writeln('source {source}        -> The miner address');
-Writeln('address {address}      -> The miner address');
+Writeln('source {source}        -> Source information for the miner');
+Writeln('address {address}      -> The miner address (not custom)');
 Writeln('cpu {number}           -> Number of cores for Mining');
 Writeln('autostart {true/false} -> Start Mining directly');
-Writeln('minerid [1-8100]       -> Optional unique miner ID');
+Writeln('minerid [0-8100]       -> Optional unique miner ID');
 Writeln('test                   -> Speed test from 1 to Max CPUs');
 Writeln('mine                   -> Start Mining with current settings');
 Writeln('exit                   -> Close the app');
@@ -474,11 +489,28 @@ For counter := 0 to length (ARRAY_Nodes)-1 do
    Result.LBTimeEnd := GetHighest.ToInt64;
    End;
 
+// Get the consensus last block Miner
+SetLength(ArrT,0);
+For counter := 0 to length (ARRAY_Nodes)-1 do
+   Begin
+   AddValue(ARRAY_Nodes[counter].LBMiner);
+   Result.LBMiner := GetHighest;
+   End;
+
 //Write(format('(%d - %d)',[Result.block, CurrentBlock]));
 
 if Result.block > CurrentBlock then
    begin
    EnterCriticalSection(CS_MinerData);
+   if ((Result.LBMiner = Address) and (CurrentBlock<>0) and (Result.block<>MyLastMinedBlock)) then
+      begin
+      MyLastMinedBlock := Result.block;
+      TotalMinedBlocks := TotalMinedBlocks+1;
+      WriteLn('*************************');
+      WriteLn('* You mined block '+MyLastMinedBlock.ToString+' *');
+      WriteLn('*************************');
+      ToLog('Mined block '+MyLastMinedBlock.ToString);
+      end;
    TargetHash := Result.LBHash;
    TargetDiff := Result.NMSDiff;
    CurrentBlock := Result.block;
@@ -857,6 +889,126 @@ Begin
 Result := 0;
 for temp := 0 to MaxCPU-1 do
    Result := Result+ArrHashes[temp];
+End;
+
+// Checks if a string is a valid address hash
+function IsValidHashAddress(Address:String):boolean;
+var
+  OrigHash : String;
+  Clave:String;
+Begin
+result := false;
+if ((length(address)>20) and (address[1] = 'N')) then
+   begin
+   OrigHash := Copy(Address,2,length(address)-3);
+   if IsValid58(OrigHash) then
+      begin
+      Clave := BMDecTo58(BMB58resumen(OrigHash));
+      OrigHash := 'N'+OrigHash+clave;
+      if OrigHash = Address then result := true else result := false;
+      end;
+   end
+End;
+
+function IsValid58(base58text:string):boolean;
+var
+  counter : integer;
+Begin
+result := true;
+if length(base58text) > 0 then
+   begin
+   for counter := 1 to length(base58text) do
+      begin
+      if pos (base58text[counter],B58Alphabet) = 0 then
+         begin
+         result := false;
+         break;
+         end;
+      end;
+   end
+else result := false;
+End;
+
+// CONVERTS A DECIMAL VALUE TO A BASE58 STRING
+function BMDecTo58(numero:string):string;
+var
+  decimalvalue : string;
+  restante : integer;
+  ResultadoDiv : DivResult;
+  Resultado : string = '';
+Begin
+decimalvalue := numero;
+while length(decimalvalue) >= 2 do
+   begin
+   ResultadoDiv := BMDividir(decimalvalue,'58');
+   DecimalValue := Resultadodiv.cociente;
+   restante := StrToInt(ResultadoDiv.residuo);
+   resultado := B58Alphabet[restante+1]+resultado;
+   end;
+if StrToInt(decimalValue) >= 58 then
+   begin
+   ResultadoDiv := BMDividir(decimalvalue,'58');
+   DecimalValue := Resultadodiv.cociente;
+   restante := StrToInt(ResultadoDiv.residuo);
+   resultado := B58Alphabet[restante+1]+resultado;
+   end;
+if StrToInt(decimalvalue) > 0 then resultado := B58Alphabet[StrToInt(decimalvalue)+1]+resultado;
+result := resultado;
+End;
+
+// RETURN THE SUMATORY OF A BASE58
+function BMB58resumen(numero58:string):string;
+var
+  counter, total : integer;
+Begin
+total := 0;
+for counter := 1 to length(numero58) do
+   begin
+   total := total+Pos(numero58[counter],B58Alphabet)-1;
+   end;
+result := IntToStr(total);
+End;
+
+// DIVIDES TO NUMBERS
+Function BMDividir(Numero1,Numero2:string):DivResult;
+var
+  counter : integer;
+  cociente : string = '';
+  long : integer;
+  Divisor : Int64;
+  ThisStep : String = '';
+Begin
+long := length(numero1);
+Divisor := StrToInt64(numero2);
+for counter := 1 to long do
+   begin
+   ThisStep := ThisStep + Numero1[counter];
+   if StrToInt(ThisStep) >= Divisor then
+      begin
+      cociente := cociente+IntToStr(StrToInt(ThisStep) div Divisor);
+      ThisStep := (IntToStr(StrToInt(ThisStep) mod Divisor));
+      end
+   else cociente := cociente+'0';
+   end;
+result.cociente := ClearLeadingCeros(cociente);
+result.residuo := ClearLeadingCeros(thisstep);
+End;
+
+// REMOVES LEFT CEROS
+function ClearLeadingCeros(numero:string):string;
+var
+  count : integer = 0;
+  movepos : integer = 0;
+Begin
+result := '';
+if numero[1] = '-' then movepos := 1;
+for count := 1+movepos to length(numero) do
+   begin
+   if numero[count] <> '0' then result := result + numero[count];
+   if ((numero[count]='0') and (length(result)>0)) then result := result + numero[count];
+   end;
+if result = '' then result := '0';
+if ((movepos=1) and (result <>'0')) then result := '-'+result;
 End;
 
 END.// END UNIT
