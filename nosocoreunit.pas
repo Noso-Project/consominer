@@ -72,6 +72,7 @@ function GetTotalHashes : integer;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
+  AppVersion = '0.1';
   MaxDiff    = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
   HasheableChars = '!"#$%&'')*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~ ';
 

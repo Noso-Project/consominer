@@ -170,7 +170,7 @@ SetLength(ArrHashes,MaxCPU);
 if not FileExists('consominer.cfg') then savedata();
 loaddata();
 LoadSeedNodes;
-writeln('Consominer Nosohash 1.0a');
+writeln('Consominer Nosohash '+AppVersion);
 writeln('Built using FPC '+fpcVersion);
 Writeln(GetOs+' --- '+MaxCPU.ToString+' CPUs --- '+Length(array_nodes).ToString+' Nodes');
 writeln('Using '+address+' with '+CPUCount.ToString+' cores');
