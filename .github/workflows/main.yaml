@@ -68,6 +68,6 @@ jobs:
         with:
           files: |
             consominer-*.zip
-            consominer-*.tgz
+            consominer-*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
