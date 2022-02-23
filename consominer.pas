@@ -72,8 +72,7 @@ While ((not FinishMiners) and (not EndThisThread)) do
       end;
    if LastRefresh+4<UTCTime then
       begin
-      LastRefresh := UTCTime;
-      ArrHashes[MyID] := TempHashes;
+      AddIntervalHashes(TempHashes);
       TempHashes := 0;
       end;
    if ((Counter = 100000000+HashesToTest) and (Testing)) then EndThisThread := true;
@@ -102,7 +101,7 @@ While not FinishProgram do
          Begin
          FinishMiners := true;
          PauseMiners := true;
-         ResetHashCounter;
+         GetTotalHashes;
          end;
       if ( (BlockAge >= 610) and (LastSync+10<UTCTime) ) then
          begin
@@ -128,7 +127,7 @@ While not FinishProgram do
             OpenThreads := CPUCount;
             writeln(#13,'-----------------------------------------------------------------------------');
             Writeln(Format('Block: %d / Address: %s / Cores: %d',[Consensus.block,address,cpucount]));
-            Writeln(Format('%s / Target: %s / %s / {%d}' ,[UpTime,Copy(TargetHash,1,10),SourceStr,GoodTotal]));
+            Writeln(Format('%s / Target: %s / %s / [%d]' ,[UpTime,Copy(TargetHash,1,10),SourceStr,TotalMinedBlocks]));
             end;
          end;
       if ( (LastSpeedUpdate+4 < UTCTime) and (not Testing) ) then
@@ -136,7 +135,11 @@ While not FinishProgram do
          MiningSpeed := GetTotalHashes / (UTCTime-LastSpeedUpdate);
          if MiningSpeed <0 then MiningSpeed := 0;
          if SyncErrorStr <> '' then write(#13,Format('%s',[SyncErrorStr]))
-         else write(#13,Format('[%d] Age: %4d / Best: %10s / Speed: %8.2f H/s / {%d}',[OpenThreads,BlockAge,Copy(TargetDiff,1,10),MiningSpeed,GoodThis]));
+         else
+            begin
+            if OpenThreads>0 then write(#13,Format('[%d] Age: %4d / Best: %10s / Speed: %8.2f H/s / {%d}',[OpenThreads,BlockAge,Copy(TargetDiff,1,10),MiningSpeed,GoodThis]))
+            else write(#13,Format('%0:-79s',['Waiting next block']));
+            end;
          LastSpeedUpdate := UTCTime;
          end;
       end;
@@ -151,6 +154,7 @@ InitCriticalSection(CS_Counter);
 InitCriticalSection(CS_MinerData);
 InitCriticalSection(CS_Solutions);
 InitCriticalSection(CS_Log);
+InitCriticalSection(CS_Interval);
 Assignfile(datafile, 'consominer.cfg');
 Assignfile(logfile, 'log.txt');
 Assignfile(OldLogFile, 'oldlogs.txt');
@@ -166,7 +170,6 @@ SetLEngth(RejectedSols,0);
 SetLEngth(LogLines,0);
 MaxCPU:= {$IFDEF UNIX}GetSystemThreadCount{$ELSE}GetCPUCount{$ENDIF};
 SetLength(ArrMiners,MaxCPU);  // Avoid overclocking
-SetLength(ArrHashes,MaxCPU);
 if not FileExists('consominer.cfg') then savedata();
 loaddata();
 LoadSeedNodes;
@@ -196,7 +199,7 @@ REPEAT
       end;
    if Uppercase(Parameter(command,0)) = 'ADDRESS' then
       begin
-      if IsValidHashAddress(Parameter(command,0)) then
+      if IsValidHashAddress(Parameter(command,1)) then
          begin
          address := parameter(command,1);
          savedata();
@@ -281,7 +284,7 @@ REPEAT
       writeln('Press CTRL+C to finish');
       ToLog('********************************************************************************');
       ToLog('Mining session opened');
-      ResetHashCounter;
+      GetTotalHashes;
       FinishMiners := false;
       Miner_Counter := 100000000;
       LastSpeedCounter := 100000000;
@@ -290,7 +293,7 @@ REPEAT
       GoodThis := 0;
       writeln('-----------------------------------------------------------------------------');
       Writeln(Format('Block: %d / Address: %s / Cores: %d',[Consensus.block, address,cpucount]));
-      Writeln(Format('%s / Target: %s / %s / {%d}' ,[UpTime,Copy(TargetHash,1,10),SourceStr,GoodTotal]));
+      Writeln(Format('%s / Target: %s / %s / [%d]' ,[UpTime,Copy(TargetHash,1,10),SourceStr,TotalMinedBlocks]));
       for counter2 := 1 to CPUCount do
          begin
          ThreadPrefix := counter2;
@@ -314,5 +317,6 @@ DoneCriticalSection(CS_Counter);
 DoneCriticalSection(CS_MinerData);
 DoneCriticalSection(CS_Solutions);
 DoneCriticalSection(CS_Log);
+DoneCriticalSection(CS_Interval);
 END.// END PROGRAM
 

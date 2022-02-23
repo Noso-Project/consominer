@@ -1,3 +1,9 @@
+Version 0.3
+
+- Session mined blocks displayed on output.
+- Fixed bug not accepting address command inputs.
+- Implemented thread safe speed calculator.
+
 Version 0.2
 
 - Implemented miner address verification.

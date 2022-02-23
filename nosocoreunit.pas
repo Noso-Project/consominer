@@ -73,7 +73,7 @@ Procedure CheckLogs();
 Function SoloMining():Boolean;
 function GetPrefix(NumberID:integer):string;
 Function BlockAge():integer;
-Procedure ResetHashCounter();
+Procedure AddIntervalHashes(hashes:int64);
 function GetTotalHashes : integer;
 function IsValidHashAddress(Address:String):boolean;
 function IsValid58(base58text:string):boolean;
@@ -100,7 +100,6 @@ var
   LogLines    : array of string;
   Solutions   : Array of TSolution;
   RejectedSols: Array of TSolution;
-  ArrHashes : Array of integer;
 
   // User options
   source : string = 'mainnet';
@@ -114,8 +113,10 @@ var
   CS_MinerData    : TRTLCriticalSection;
   CS_Solutions    : TRTLCriticalSection;
   CS_Log          : TRTLCriticalSection;
+  CS_Interval     : TRTLCriticalSection;
 
   // Mining
+  ThreadsIntervalHashes : int64 = 0;
   OpenThreads : integer = 0;
   ThreadPrefix : integer = 0;
   MyLastMinedBlock : integer = 0;
@@ -874,21 +875,23 @@ Begin
 Result := UTCTime-Consensus.LBTimeEnd+1;
 End;
 
-Procedure ResetHashCounter();
+Procedure AddIntervalHashes(hashes:int64);
 var
   temp : integer;
 Begin
-for temp := 0 to MaxCPU-1 do
-   ArrHashes[temp] := 0;
+EnterCriticalSection(CS_Interval);
+ThreadsIntervalHashes := ThreadsIntervalHashes+hashes;
+LeaveCriticalSection(CS_Interval);
 End;
 
 function GetTotalHashes : integer;
 var
   temp : integer;
 Begin
-Result := 0;
-for temp := 0 to MaxCPU-1 do
-   Result := Result+ArrHashes[temp];
+EnterCriticalSection(CS_Interval);
+Result := ThreadsIntervalHashes;
+ThreadsIntervalHashes := 0;
+LeaveCriticalSection(CS_Interval);
 End;
 
 // Checks if a string is a valid address hash
