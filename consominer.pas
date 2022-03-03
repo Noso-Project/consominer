@@ -6,7 +6,7 @@ uses
   {$IFDEF UNIX}
    cthreads,
   {$ENDIF}
-  Classes, sysutils, nosocoreunit {$IFDEF UNIX}, UTF8Process{$ENDIF}
+  Classes, sysutils, strutils, nosocoreunit {$IFDEF UNIX}, UTF8Process{$ENDIF}
   { you can add units after this };
 
 Type
@@ -55,13 +55,13 @@ var
   LastRefresh : int64 = 0;
 Begin
 MyID := ThreadPrefix-1;
-ThisPrefix := GetPrefix(MinerID)+GetPrefix(MyID)+'!!!!!';
+ThisPrefix := MAINPREFIX+GetPrefix(MinerID)+GetPrefix(MyID);
+ThisPrefix := AddCharR('!',ThisPrefix,18);
 While ((not FinishMiners) and (not EndThisThread)) do
    begin
-   //BaseHash := GetHashToMine;
    BaseHash := ThisPrefix+Counter.ToString;
    inc(Counter);inc(TempHashes);
-   ThisHash := NosoHash(BaseHash+Address);
+   ThisHash := NosoHash(BaseHash+MiningAddress);
    ThisDiff := CheckHashDiff(TargetHash,ThisHash);
    if ThisDiff<TargetDiff then
       begin
@@ -69,6 +69,7 @@ While ((not FinishMiners) and (not EndThisThread)) do
       ThisSolution.Hash  :=BaseHash;
       ThisSolution.Diff  :=ThisDiff;
       AddSolution(ThisSolution);
+      //writeln('SHARE:'+BaseHash+slinebreak+'Address:'+MiningAddress+slinebreak+'target:'+TargetHash+slinebreak+'Diff:'+ThisDiff);
       end;
    if LastRefresh+4<UTCTime then
       begin
@@ -103,7 +104,7 @@ While not FinishProgram do
          PauseMiners := true;
          GetTotalHashes;
          end;
-      if ( (BlockAge >= 610) and (LastSync+10<UTCTime) ) then
+      if ( (BlockAge >= 10) and (LastSync+3<UTCTime) and (PauseMiners)) then
          begin
          LastSync := UTCTime;
          CheckSource;
@@ -125,8 +126,8 @@ While not FinishProgram do
                 Sleep(1);
                 end;
             OpenThreads := CPUCount;
-            writeln(#13,'-----------------------------------------------------------------------------');
-            Writeln(Format('Block: %d / Address: %s / Cores: %d',[Consensus.block,address,cpucount]));
+            writeln(#13,'--------------------------------------------------------------------');
+            Writeln(Format('Block: %d / Address: %s / Cores: %d',[CurrentBlock,address,cpucount]));
             Writeln(Format('%s / Target: %s / %s / [%d]' ,[UpTime,Copy(TargetHash,1,10),SourceStr,TotalMinedBlocks]));
             end;
          end;
@@ -150,7 +151,6 @@ End;
 {$R *.res}
 
 BEGIN // Program Start
-InitCriticalSection(CS_Counter);
 InitCriticalSection(CS_MinerData);
 InitCriticalSection(CS_Solutions);
 InitCriticalSection(CS_Log);
@@ -168,6 +168,7 @@ SetLEngth(ARRAY_Nodes,0);
 SetLEngth(Solutions,0);
 SetLEngth(RejectedSols,0);
 SetLEngth(LogLines,0);
+SetLEngth(ArrSources,0);
 MaxCPU:= {$IFDEF UNIX}GetSystemThreadCount{$ELSE}GetCPUCount{$ENDIF};
 SetLength(ArrMiners,MaxCPU);  // Avoid overclocking
 if not FileExists('consominer.cfg') then savedata();
@@ -270,6 +271,15 @@ REPEAT
          WriteLn('Invalid miner address');
          continue;
          end;
+      if LoadSources = 0 then
+         begin
+         WriteLn('No sources set');
+         continue;
+         end
+      else WriteLn('Sources found: '+Length(ArrSources).ToString);
+      LastSourceTry := -1;
+      ToLog('********************************************************************************');
+      ToLog('Mining session opened');
       Repeat
          Write('Syncing...',#13);
          sleep(100);
@@ -278,12 +288,9 @@ REPEAT
       LastSync := UTCTime;
       RunMiner := true;
       NewBlock := false;
-      If SoloMining then Miner_Prefix := GetPrefix(MinerID);
+      Miner_Prefix := AddCharR('!',MAINPREFIX+GetPrefix(MinerID),9);
       writeln('Mining with '+CPUcount.ToString+' CPUs and Prefix '+Miner_Prefix);
-      if SoloMining then SourceStr := 'Mainnet' else SourceStr := '?????';
       writeln('Press CTRL+C to finish');
-      ToLog('********************************************************************************');
-      ToLog('Mining session opened');
       GetTotalHashes;
       FinishMiners := false;
       Miner_Counter := 100000000;
@@ -291,8 +298,8 @@ REPEAT
       StartMiningTimeStamp := UTCTime;
       SentThis := 0;
       GoodThis := 0;
-      writeln('-----------------------------------------------------------------------------');
-      Writeln(Format('Block: %d / Address: %s / Cores: %d',[Consensus.block, address,cpucount]));
+      writeln('--------------------------------------------------------------------');
+      Writeln(Format('Block: %d / Address: %s(%s...) / Cores: %d',[CurrentBlock, address, Copy(miningaddress,1,5),cpucount]));
       Writeln(Format('%s / Target: %s / %s / [%d]' ,[UpTime,Copy(TargetHash,1,10),SourceStr,TotalMinedBlocks]));
       for counter2 := 1 to CPUCount do
          begin
@@ -309,11 +316,24 @@ REPEAT
       end
    else if Uppercase(Parameter(command,0)) = 'HELP' then ShowHelp
    else if Uppercase(Parameter(command,0)) = 'SETTINGS' then ShowSettings
-   else if Uppercase(Parameter(command,0)) = 'SOURCE' then WriteLn('Not implemented')
-   //else if Uppercase(Parameter(command,0)) = 'COUNT' then Writeln('Active threads : '+OpenThreads.ToString) // debugonly
+   else if Uppercase(Parameter(command,0)) = 'SOURCE' then
+      begin
+      if Uppercase(Parameter(command,1)) = 'ADD' then
+         begin
+         source := UpperCase(Parameter(Command,2))+' '+Source;
+         savedata();
+         Writeln('Source added : '+UpperCase(Parameter(Command,2)));
+         end
+      else if Uppercase(Parameter(command,1)) = 'CLEAR' then
+         begin
+         Source := 'Mainnet';
+         savedata();
+         Writeln('Source set to solo-mine');
+         end
+      else writeln('Use "Source add [Pool]" or "Source clear"');
+      end
    else if Command <> '' then writeln('Invalid command');
 UNTIL Uppercase(Command) = 'EXIT';
-DoneCriticalSection(CS_Counter);
 DoneCriticalSection(CS_MinerData);
 DoneCriticalSection(CS_Solutions);
 DoneCriticalSection(CS_Log);

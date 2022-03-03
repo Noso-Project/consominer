@@ -52,20 +52,22 @@ Procedure ShowHelp();
 Procedure ShowSettings();
 Procedure LoadData();
 function SaveData():boolean;
+Function LoadSources():integer;
 function LoadSeedNodes():integer;
 Function GetConsensus():TNodeData;
 Function CheckSource():Boolean;
+Function GetPoolData(IpandPor:String):String;
 Function SyncNodes():integer;
 Procedure DoNothing();
 Function NosoHash(source:string):string;
 Function CheckHashDiff(Target,ThisHash:String):string;
-function GetHashToMine():String;
 Function HashMD5String(StringToHash:String):String;
 Function UpTime():string;
 Procedure AddSolution(Data:TSolution);
 Function SolutionsLength():Integer;
 function GetSolution():TSolution;
 Procedure PushSolution(Data:TSolution);
+Procedure SubmitPoolShare(Data:TSolution);
 Procedure SendSolution(Data:TSolution);
 Function ResetLogs():boolean;
 Procedure ToLog(Texto:String);
@@ -84,9 +86,9 @@ function ClearLeadingCeros(numero:string):string;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
-  AppVersion = '0.4';
+  AppVersion = '0.5';
   MaxDiff    = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
-  HasheableChars = '!"#$%&'')*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~ ';
+  HasheableChars = '!"#$%&'#39')*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
   B58Alphabet : string = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 
 var
@@ -106,16 +108,21 @@ var
   address : string = 'N2kFAtGWLb57Qz91sexZSAnYwA3T7Cy';
   cpucount : integer = 1;
   autostart : boolean = false;
-  minerid    : Integer = 0;
+  minerid : Integer = 0;
+
+  LastSourceTry : Integer = 0;
+  ArrSources : Array of string;
 
   // Critical sections
-  CS_Counter      : TRTLCriticalSection;
   CS_MinerData    : TRTLCriticalSection;
   CS_Solutions    : TRTLCriticalSection;
   CS_Log          : TRTLCriticalSection;
   CS_Interval     : TRTLCriticalSection;
 
   // Mining
+  MAINPREFIX : String = '';
+  MAINBALANCE : int64;
+  MiningAddress : String = '';
   ThreadsIntervalHashes : int64 = 0;
   OpenThreads : integer = 0;
   ThreadPrefix : integer = 0;
@@ -305,7 +312,7 @@ TRY
 while not eof(datafile) do
    begin
    readln(datafile,linea);
-   if uppercase(Parameter(linea,0)) = 'SOURCE' then Source := Parameter(linea,1);
+   if uppercase(Parameter(linea,0)) = 'SOURCE' then Source := Copy(linea,8,length(linea));
    if uppercase(Parameter(linea,0)) = 'ADDRESS' then Address := Parameter(linea,1);
    if uppercase(Parameter(linea,0)) = 'CPU' then CPUCount := StrToIntDef(Parameter(linea,1),1);
    if uppercase(Parameter(linea,0)) = 'AUTOSTART' then AutoStart := StrToBoolDef(Parameter(linea,1),false);
@@ -325,6 +332,26 @@ EXCEPT ON E:EXCEPTION do
    exit
    end
 END {TRY};
+End;
+
+Function LoadSources():integer;
+var
+  ThisSource : String;
+  Counter : integer = 0;
+Begin
+Result := 0;
+SetLEngth(ArrSources,0);
+Repeat
+   begin
+   ThisSource := Parameter(Source,counter);
+   If ThisSource<> '' then
+      begin
+      Insert(ThisSource,ArrSources,length(ArrSources));
+      Result := Result +1;
+      end;
+   Counter := counter+1;
+   end;
+until ThisSource = '';
 End;
 
 // Fill the nodes array with seed nodes data
@@ -443,7 +470,6 @@ var
 
 Begin
 result := default(TNodeData);
-// Get the consensus block number
 SetLength(ArrT,0);
 For counter := 0 to length (ARRAY_Nodes)-1 do
    Begin
@@ -508,7 +534,7 @@ if Result.block > CurrentBlock then
       begin
       MyLastMinedBlock := Result.block;
       TotalMinedBlocks := TotalMinedBlocks+1;
-      WriteLn('*************************');
+      WriteLn(#13,'*************************');
       WriteLn('* You mined block '+MyLastMinedBlock.ToString+' *');
       WriteLn('*************************');
       ToLog('Mined block '+MyLastMinedBlock.ToString);
@@ -526,22 +552,93 @@ End;
 Function CheckSource():Boolean;
 var
   ReachedNodes : integer = 0;
+  ThisSource   : String;
+  PoolString : String ='';
 Begin
 Result := False;
-If solomining then
+LastSourceTry := LastSourceTry+1;
+if LastSourceTry<0 then LastSourceTry := 0;
+if LastSourceTry>=length(ArrSources) then LastSourceTry := 0;
+ThisSource := ArrSources[LastSourceTry];
+If UpperCase(ThisSource) = 'MAINNET' then
    begin
+   writeln();
    ReachedNodes := SyncNodes;
    if ReachedNodes >= (Length(array_nodes) div 2)+1 then
       begin
       Consensus := GetConsensus;
+      SourceStr := ThisSource;
       SyncErrorStr := '';
+      MAINPREFIX := '';
+      MiningAddress := Address;
       result := true;
+      LastSourceTry := -1;
+      ToLog('-> Block '+Consensus.block.ToString+' to mainnet');
       end
    else
       begin
       if not runminer then WriteLn(Format('Synced failed %d/%d',[ReachedNodes,Length(array_nodes)]))
       else SyncErrorStr := 'Connection error. Check your internet connection                               ';
       end;
+   end
+else
+   begin
+   PoolString := GetPoolData(ThisSource);
+   if PoolString<> 'ERROR' then // Pool reached
+      begin
+      SourceStr := ThisSource;
+      SyncErrorStr := '';
+      LastSourceTry := -1;
+      //ToLog(Parameter(PoolString,5)+'<>'+CurrentBlock.ToString); // debug only
+      if StrToIntDef(Parameter(PoolString,5),0) > CurrentBlock then
+         begin
+         NewBlock := true;
+         result := true;
+         MAINPREFIX := Parameter(PoolString,1);
+         MiningAddress := Parameter(PoolString,2);
+            EnterCriticalSection(CS_MinerData);
+            TargetHash := Parameter(PoolString,4);
+            TargetDiff := Parameter(PoolString,3);
+            CurrentBlock := StrToIntDef(Parameter(PoolString,5),0);
+            NewBlock := true;
+            LeaveCriticalSection(CS_MinerData);
+            ToLog('-> Block '+CurrentBlock.ToString+' to '+SourceStr);
+         end;
+      end
+   else
+      begin
+      if not runminer then writeln(ThisSource+' unreacheable')
+      else SyncErrorStr := 'Connection error. Check your internet connection                               ';
+      end;
+   end;
+End;
+
+Function GetPoolData(IpandPor:String):String;
+var
+  TCPClient : TidTCPClient;
+  ResultLine : String = '';
+Begin
+Result := 'ERROR';
+ResultLine := '';
+TCPClient := TidTCPClient.Create(nil);
+IpandPor := StringReplace(IpandPor,':',' ',[rfReplaceAll, rfIgnoreCase]);
+TCPclient.Host:=Parameter(IpandPor,0);
+TCPclient.Port:=StrToIntDef(Parameter(IpandPor,1),8082);
+TCPclient.ConnectTimeout:= 3000;
+TCPclient.ReadTimeout:=3000;
+TRY
+TCPclient.Connect;
+TCPclient.IOHandler.WriteLn('SOURCE '+Address);
+ResultLine := TCPclient.IOHandler.ReadLn(IndyTextEncoding_UTF8);
+TCPclient.Disconnect();
+EXCEPT on E:Exception do
+   begin
+   end;
+END{try};
+TCPClient.Free;
+if Parameter(ResultLine,0)='OK' then
+   begin
+   Result := ResultLine;
    end;
 End;
 
@@ -635,40 +732,6 @@ for counter := 1 to 32 do
 Result := Resultado;
 End;
 
-function GetHashToMine():String;
-
-  function IncreaseHashSeed(Seed:string):string;
-  var
-    LastChar : integer;
-    contador: integer;
-  Begin
-  LastChar := Ord(Seed[9])+1;
-  Seed[9] := chr(LastChar);
-  for contador := 9 downto 1 do
-     begin
-     if Ord(Seed[contador])>124 then
-        begin
-        Seed[contador] := chr(33);
-        Seed[contador-1] := chr(Ord(Seed[contador-1])+1);
-        end;
-     end;
-  seed := StringReplace(seed,'(','~',[rfReplaceAll, rfIgnoreCase]);
-  result := StringReplace(seed,'_','}',[rfReplaceAll, rfIgnoreCase]);
-  End;
-
-Begin
-EnterCriticalSection(CS_Counter);
-Result := Miner_Prefix+Miner_Counter.ToString;
-Miner_Counter := Miner_Counter+1;
-If Miner_Counter>999999999 then
-   begin
-   Miner_Counter := 100000000;
-   IncreaseHashSeed(Miner_Prefix);
-   if Testing then FinishMiners := true;
-   end;
-LeaveCriticalSection(CS_Counter);
-End;
-
 Function HashMD5String(StringToHash:String):String;
 Begin
 result := Uppercase(MD5Print(MD5String(StringToHash)));
@@ -730,7 +793,57 @@ End;
 
 Procedure PushSolution(Data:TSolution);
 Begin
-If SoloMining then SendSolution(Data);
+If SoloMining then SendSolution(Data)
+else SubmitPoolShare(Data);
+End;
+
+Procedure SubmitPoolShare(Data:TSolution);
+var
+  TCPClient  : TidTCPClient;
+  IpandPor   : String = '';
+  ResultLine : String = '';
+  Trys       : integer = 0;
+  Success    : boolean;
+Begin
+ResultLine := '';
+TCPClient := TidTCPClient.Create(nil);
+IpandPor := StringReplace(SourceStr,':',' ',[rfReplaceAll, rfIgnoreCase]);
+TCPclient.Host:=Parameter(IpandPor,0);
+TCPclient.Port:=StrToIntDef(Parameter(IpandPor,1),8082);
+TCPclient.ConnectTimeout:= 3000;
+TCPclient.ReadTimeout:=3000;
+REPEAT
+Success := false;
+Trys :=+1;
+TRY
+TCPclient.Connect;
+TCPclient.IOHandler.WriteLn('SHARE '+address+' '+Data.Hash);
+ResultLine := TCPclient.IOHandler.ReadLn(IndyTextEncoding_UTF8);
+TCPclient.Disconnect();
+Success := true;
+EXCEPT on E:Exception do
+   Success := false;
+END{try};
+UNTIL ((Success) or (Trys = 5));
+TCPClient.Free;
+if Success then
+   begin
+   if resultLine = 'True' then
+      begin
+      GoodThis := GoodThis+1;
+      ToLog('Submited share: '+Data.Diff);
+      end
+   else
+      begin
+      ToLog('Rejected share: '+Data.Diff);
+      end;
+   end
+else // Not send
+   begin
+   ToLog('Unable to send solution to '+SourceStr);
+   SyncErrorStr := 'Connection error. Check your internet connection                               ';
+   Insert(Data,RejectedSols,Length(RejectedSols));
+   end;
 End;
 
 Procedure SendSolution(Data:TSolution);
@@ -800,7 +913,7 @@ End;
 Function SoloMining():Boolean;
 Begin
 Result := true;
-if Uppercase(Source)<> 'MAINNET' then result := false;
+if Uppercase(SourceStr)<> 'MAINNET' then result := false;
 End;
 
 Procedure ToLog(Texto:String);
@@ -837,7 +950,8 @@ CloseFile(LogFile);
 CloseFile(OldLogFile);
 Rewrite(LogFile);
 CloseFile(LogFile);
-EXCEPT ON E:Exception do Result := false;
+EXCEPT ON E:Exception do
+   Result := false;
 END {Try};
 End;
 
@@ -855,7 +969,7 @@ If length(LogLines) > 0 then
       end;
    CloseFile(LogFile);
    EXCEPT ON E:EXCEPTION DO
-      WriteLn(E.Message);
+      //WriteLn(E.Message);
    END; {Try}
    LeaveCriticalSection(CS_Log);
    end;
@@ -869,12 +983,12 @@ Begin
 HashChars :=  length(HasheableChars)-1;
 firstchar := NumberID div HashChars;
 secondchar := NumberID mod HashChars;
-result := HasheableChars[firstchar+1]+HasheableChars[secondchar+1]+'!!!!!!!';
+result := HasheableChars[firstchar+1]+HasheableChars[secondchar+1];
 End;
 
 Function BlockAge():integer;
 Begin
-Result := UTCTime-Consensus.LBTimeEnd+1;
+Result := UTCTime mod 600;
 End;
 
 Procedure AddIntervalHashes(hashes:int64);
