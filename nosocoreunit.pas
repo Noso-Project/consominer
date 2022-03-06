@@ -5,7 +5,7 @@ unit nosocoreunit;
 interface
 
 uses
-  Classes, SysUtils,IdTCPClient, IdGlobal, dateutils, strutils, MD5;
+  Classes, SysUtils,IdTCPClient, IdGlobal, dateutils, strutils, MD5 ;
 
 type
   TConsensus= packed record
@@ -86,7 +86,7 @@ function ClearLeadingCeros(numero:string):string;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
-  AppVersion = '0.5';
+  AppVersion = '0.51';
   MaxDiff    = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
   HasheableChars = '!"#$%&'#39')*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
   B58Alphabet : string = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -684,6 +684,37 @@ var
   result := resultado2
   End;
 
+  function MutateHash(sHash: String): String;
+    var
+    LHash: String absolute sHash;
+    AHash: array[1..128] of Char;
+    CharA, CharB: char;
+    C: byte;
+    I, J, HashLen: Integer;
+    n: byte;
+  begin
+  AHash := '';
+  HashLen := Length(LHash);
+  n:=1;
+  for J:= 1 to 128 do
+  begin
+    //SetLength(AHash, 128);
+    for I := 1 to HashLen do
+    begin
+      CharA := LHash[I];
+      if I < HashLen then
+        CharB := LHash[I + 1]
+      else
+        CharB := LHash[1];
+      C := Ord(CharA) + Ord(CharB);
+      AHash[I] := Chr(GetClean(C));
+      //AHash := AHash + Chr(GetClean(C));
+    end;
+    LHash := AHash;
+  end;
+  Result := LHash;
+  end;
+
 Begin
 result := '';
 for counter := 1 to length(source) do
@@ -696,9 +727,10 @@ if length(source)>63 then source := '';
 repeat source := source+filler;
 until length(source) >= 128;
 source := copy(source,0,128);
-FirstChange[1] := RebuildHash(source);
-for counter := 2 to 128 do FirstChange[counter]:= RebuildHash(firstchange[counter-1]);
-finalHASH := FirstChange[128];
+//FirstChange[1] := RebuildHash(source);
+//for counter := 2 to 128 do FirstChange[counter]:= RebuildHash(firstchange[counter-1]);
+//finalHASH := FirstChange[128];
+FinalHash := MutateHash(Source);
 for counter := 0 to 31 do
    begin
    charA := Ord(finalHASH[(counter*4)+1]);
