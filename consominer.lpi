@@ -88,13 +88,10 @@
       <FormatVersion Value="2"/>
       <Modes Count="0"/>
     </RunParams>
-    <RequiredPackages Count="2">
+    <RequiredPackages Count="1">
       <Item1>
-        <PackageName Value="HashLib4PascalPackage"/>
-      </Item1>
-      <Item2>
         <PackageName Value="indylaz"/>
-      </Item2>
+      </Item1>
     </RequiredPackages>
     <Units Count="3">
       <Unit0>
