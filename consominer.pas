@@ -6,15 +6,17 @@ uses
   {$IFDEF UNIX}
    cthreads,
   {$ENDIF}
-  Classes, sysutils, strutils, nosocoreunit {$IFDEF UNIX}, UTF8Process{$ENDIF}
+  Classes, sysutils, strutils, nosocoreunit {$IFDEF UNIX}, UTF8Process{$ENDIF}, NosoDig.Crypto
   { you can add units after this };
 
 Type
   TMinerThread = class(TThread)
+    private
+      TNumber:integer;
     protected
       procedure Execute; override;
     public
-      Constructor Create(CreateSuspended : boolean);
+      Constructor Create(CreateSuspended : boolean; const Thisnumber:integer);
     end;
 
   TMainThread = class(TThread)
@@ -28,12 +30,13 @@ var
   ArrMiners : Array of TMinerThread;
   MainThread : TMainThread;
   CPUspeed: extended;
-  HashesToTest : integer = 5000;
+  HashesToTest : integer = 10000;
   FirstRun : boolean = true;
 
-constructor TMinerThread.Create(CreateSuspended : boolean);
+Constructor TMinerThread.Create(CreateSuspended : boolean; const Thisnumber:integer);
 Begin
 inherited Create(CreateSuspended);
+Tnumber := ThisNumber;
 FreeOnTerminate := True;
 End;
 
@@ -49,34 +52,38 @@ var
   ThisSolution : TSolution;
   MyID : integer;
   ThisPrefix : string = '';
-  Counter : int64 = 100000000;
+  MyCounter : int64 = 100000000;
   EndThisThread : boolean = false;
   TempHashes : integer = 0;
   LastRefresh : int64 = 0;
 Begin
-MyID := ThreadPrefix-1;
+MyCounter := 100000000;
+MyID := TNumber-1;
 ThisPrefix := MAINPREFIX+GetPrefix(MinerID)+GetPrefix(MyID);
-ThisPrefix := AddCharR('!',ThisPrefix,18);
+ThisPrefix := AddCharR('!',ThisPrefix,9);
+Writeln(Format('Starting Thread %d with prefix %s ',[MyID,ThisPrefix]));
 While ((not FinishMiners) and (not EndThisThread)) do
    begin
-   BaseHash := ThisPrefix+Counter.ToString;
-   inc(Counter);inc(TempHashes);
+   BaseHash := ThisPrefix+MyCounter.ToString;
+   MyCounter := MyCounter+1;TempHashes := TempHashes+1;
    ThisHash := NosoHash(BaseHash+MiningAddress);
-   ThisDiff := CheckHashDiff(TargetHash,ThisHash);
+   ThisDiff := GetHashDiff(TargetHash,ThisHash);
    if ThisDiff<TargetDiff then
       begin
       ThisSolution.Target:=TargetHash;
       ThisSolution.Hash  :=BaseHash;
       ThisSolution.Diff  :=ThisDiff;
       AddSolution(ThisSolution);
-      //writeln('SHARE:'+BaseHash+slinebreak+'Address:'+MiningAddress+slinebreak+'target:'+TargetHash+slinebreak+'Diff:'+ThisDiff);
       end;
-   if LastRefresh+4<UTCTime then
+   if not testing then
       begin
-      AddIntervalHashes(TempHashes);
-      TempHashes := 0;
+      if LastRefresh+4<UTCTime then
+         begin
+         AddIntervalHashes(TempHashes);
+         TempHashes := 0;
+         end;
       end;
-   if ((Counter = 100000000+HashesToTest) and (Testing)) then EndThisThread := true;
+   if ((MyCounter >= 100000000+HashesToTest) and (Testing)) then EndThisThread := true;
    end;
 dec(OpenThreads);
 End;
@@ -85,9 +92,9 @@ procedure TMainThread.Execute;
 Begin
 While not FinishProgram do
    begin
-   CheckLogs;
    if runminer then
       begin
+      CheckLogs;
       While Length(RejectedSols)>0 do
          begin
          write(Length(RejectedSols));
@@ -113,14 +120,13 @@ While not FinishProgram do
             NewBlock := False;
             GoodThis := 0;
             SentThis := 0;
-            Miner_Counter := 100000000;
             LastSpeedCounter := 100000000;
             FinishMiners := false;
             PauseMiners := false;
             for counter2 := 1 to CPUCount do
                 begin
                 ThreadPrefix := counter2;
-                ArrMiners[counter2-1] := TMinerThread.Create(true);
+                ArrMiners[counter2-1] := TMinerThread.Create(true,counter2);
                 ArrMiners[counter2-1].FreeOnTerminate:=true;
                 ArrMiners[counter2-1].Start;
                 Sleep(1);
@@ -176,6 +182,7 @@ loaddata();
 LoadSeedNodes;
 writeln('Consominer Nosohash '+AppVersion);
 writeln('Built using FPC '+fpcVersion);
+writeln('Hashing optimizations by Equinox');
 Writeln(GetOs+' --- '+MaxCPU.ToString+' CPUs --- '+Length(array_nodes).ToString+' Nodes');
 writeln('Using '+address+' with '+CPUCount.ToString+' cores');
 if not autostart then writeln('Please type help to get a list of commands');
@@ -219,15 +226,13 @@ REPEAT
       Testing:= true;
       for counter :=1 to MaxCPU do
          begin
-         write('Testing with '+counter.ToString+' CPUs: ');
+         writeln('Testing '+HashesToTest.toString+' hashes with '+counter.ToString+' CPUs: ');
          TestStart := GetTickCount64;
          FinishMiners := false;
-         Miner_Counter := 1000000000-(HashesToTest*counter);
          ActiveMiners := counter;
          for counter2 := 1 to counter do
             begin
-            ThreadPrefix := counter2;
-            ArrMiners[counter2-1] := TMinerThread.Create(true);
+            ArrMiners[counter2-1] := TMinerThread.Create(true,counter2);
             ArrMiners[counter2-1].FreeOnTerminate:=true;
             ArrMiners[counter2-1].Start;
             sleep(1);
@@ -239,8 +244,10 @@ REPEAT
          TestEnd := GetTickCount64;
          TestTime := (TestEnd-TestStart);
          CPUSpeed := HashesToTest/(testtime/1000);
-         writeln(FormatFloat('0.00',CPUSpeed)+' -> '+FormatFloat('0.00',CPUSpeed*counter)+' h/s');
+         writeln('['+FormatFLoat('0.000',testtime/1000)+' sec] '+FormatFloat('0.00',CPUSpeed)+' -> '+FormatFloat('0.00',CPUSpeed*counter)+' h/s');
          end;
+      SetLength(ArrMiners,0);
+      SetLength(ArrMiners,MaxCPU);
       Testing := false;
       end
    else if Uppercase(Parameter(command,0)) = 'EXIT' then
@@ -293,7 +300,6 @@ REPEAT
       writeln('Press CTRL+C to finish');
       GetTotalHashes;
       FinishMiners := false;
-      Miner_Counter := 100000000;
       LastSpeedCounter := 100000000;
       StartMiningTimeStamp := UTCTime;
       SentThis := 0;
@@ -304,7 +310,7 @@ REPEAT
       for counter2 := 1 to CPUCount do
          begin
          ThreadPrefix := counter2;
-         ArrMiners[counter2-1] := TMinerThread.Create(true);
+         ArrMiners[counter2-1] := TMinerThread.Create(true,counter2);
          ArrMiners[counter2-1].FreeOnTerminate:=true;
          ArrMiners[counter2-1].Start;
          sleep(1);

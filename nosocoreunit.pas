@@ -59,7 +59,7 @@ Function CheckSource():Boolean;
 Function GetPoolData(IpandPor:String):String;
 Function SyncNodes():integer;
 Procedure DoNothing();
-Function NosoHash(source:string):string;
+Function NosoHashOld(source:string):string;
 Function CheckHashDiff(Target,ThisHash:String):string;
 Function HashMD5String(StringToHash:String):String;
 Function UpTime():string;
@@ -77,6 +77,7 @@ function GetPrefix(NumberID:integer):string;
 Function BlockAge():integer;
 Procedure AddIntervalHashes(hashes:int64);
 function GetTotalHashes : integer;
+function GetDiffLeadingZeros(Hash:String):integer;
 function IsValidHashAddress(Address:String):boolean;
 function IsValid58(base58text:string):boolean;
 function BMDecTo58(numero:string):string;
@@ -86,7 +87,7 @@ function ClearLeadingCeros(numero:string):string;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
-  AppVersion = '0.52';
+  AppVersion = '0.53';
   MaxDiff    = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
   HasheableChars = '!"#$%&'#39')*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
   B58Alphabet : string = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -136,10 +137,10 @@ var
   NewBlock     : boolean = false;
   TargetHash : string = '00000000000000000000000000000000';
   TargetDiff : String = MaxDiff;
+    TargetZeros : integer = 0;
   FinishMiners : boolean = true;
   PauseMiners : Boolean = false;
   ActiveMiners : integer;
-  Miner_Counter : integer = 100000000;
   TestStart, TestEnd, TestTime : Int64;
   Miner_Prefix : String = '!!!!!!!!!';
   Testing : Boolean = false;
@@ -162,7 +163,8 @@ var
                           '109.230.238.240:8080 '+
                           '172.245.52.208:8080 '+
                           '192.210.226.118:8080 '+
-                          '194.156.88.117:8080';
+                          '194.156.88.117:8080 '+
+                          '107.175.59.177:8080';
 
 implementation
 
@@ -542,6 +544,7 @@ if Result.block > CurrentBlock then
    else WriteLn(#13,Format('Block : %d / Miner : %s',[Result.block,Result.LBMiner]));
    TargetHash := Result.LBHash;
    TargetDiff := Result.NMSDiff;
+   TargetZeros := 0;
    CurrentBlock := Result.block;
    NewBlock := true;
    LeaveCriticalSection(CS_MinerData);
@@ -599,6 +602,7 @@ else
             EnterCriticalSection(CS_MinerData);
             TargetHash := Parameter(PoolString,4);
             TargetDiff := Parameter(PoolString,3);
+            TargetZeros := 0;
             CurrentBlock := StrToIntDef(Parameter(PoolString,5),0);
             NewBlock := true;
             LeaveCriticalSection(CS_MinerData);
@@ -647,7 +651,7 @@ Begin
 // Reminder for later adition
 End;
 
-Function NosoHash(source:string):string;
+Function NosoHashOld(source:string):string;
 var
   counter : integer;
   FirstChange : array[1..128] of string;
@@ -755,11 +759,17 @@ Begin
 result := 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
 for counter := 1 to 32 do
    begin
+   if ((counter <= TargetZeros) and (ThisHash[counter]<>Target[counter]) ) then
+      begin
+      result := MaxDiff;
+      exit;
+      end;
    ValA := Hex2Dec(ThisHash[counter]);
    ValB := Hex2Dec(Target[counter]);
    Diference := Abs(ValA - ValB);
    ResChar := UPPERCASE(IntToHex(Diference,1));
-   Resultado := Resultado+ResChar
+   Resultado := Resultado+ResChar;
+
    end;
 Result := Resultado;
 End;
@@ -919,6 +929,7 @@ If success then
       begin
       EnterCriticalSection(CS_MinerData);
       TargetDiff := NewDiff;
+      TargetZeros := GetDiffLeadingZeros(TargetDiff);
       LeaveCriticalSection(CS_MinerData);
       end;
    WasGood := StrToBoolDef(Parameter(Resultado,0),false);
@@ -1036,6 +1047,15 @@ EnterCriticalSection(CS_Interval);
 Result := ThreadsIntervalHashes;
 ThreadsIntervalHashes := 0;
 LeaveCriticalSection(CS_Interval);
+End;
+
+function GetDiffLeadingZeros(Hash:String):integer;
+var
+  counter : integer = 1;
+Begin
+for counter := 1 to length(Hash) do
+   if hash[counter]<> '0' then break;
+result := counter-1;
 End;
 
 // Checks if a string is a valid address hash
