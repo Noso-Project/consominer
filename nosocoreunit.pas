@@ -126,7 +126,6 @@ var
   MiningAddress : String = '';
   ThreadsIntervalHashes : int64 = 0;
   OpenThreads : integer = 0;
-  ThreadPrefix : integer = 0;
   MyLastMinedBlock : integer = 0;
   TotalMinedBlocks : integer = 0;
   SourceStr   : string;
@@ -657,7 +656,7 @@ var
   FirstChange : array[1..128] of string;
   finalHASH : string;
   ThisSum : integer;
-  charA,charB,charC,charD:integer;
+  charA,charB,charC,charD, CharE, CharF, CharG, CharH:integer;
   Filler : string = '%)+/5;=CGIOSYaegk';
 
   Function GetClean(number:integer):integer;
@@ -688,37 +687,6 @@ var
   result := resultado2
   End;
 
-  function MutateHash(sHash: String): String;
-    var
-    LHash: String absolute sHash;
-    AHash: array[1..128] of Char;
-    CharA, CharB: char;
-    C: byte;
-    I, J, HashLen: Integer;
-    n: byte;
-  begin
-  AHash := '';
-  HashLen := Length(LHash);
-  n:=1;
-  for J:= 1 to 128 do
-  begin
-    //SetLength(AHash, 128);
-    for I := 1 to HashLen do
-    begin
-      CharA := LHash[I];
-      if I < HashLen then
-        CharB := LHash[I + 1]
-      else
-        CharB := LHash[1];
-      C := Ord(CharA) + Ord(CharB);
-      AHash[I] := Chr(GetClean(C));
-      //AHash := AHash + Chr(GetClean(C));
-    end;
-    LHash := AHash;
-  end;
-  Result := LHash;
-  end;
-
 Begin
 result := '';
 for counter := 1 to length(source) do
@@ -731,10 +699,9 @@ if length(source)>63 then source := '';
 repeat source := source+filler;
 until length(source) >= 128;
 source := copy(source,0,128);
-//FirstChange[1] := RebuildHash(source);
-//for counter := 2 to 128 do FirstChange[counter]:= RebuildHash(firstchange[counter-1]);
-//finalHASH := FirstChange[128];
-FinalHash := MutateHash(Source);
+FirstChange[1] := RebuildHash(source);
+for counter := 2 to 128 do FirstChange[counter]:= RebuildHash(firstchange[counter-1]);
+finalHASH := FirstChange[128];
 for counter := 0 to 31 do
    begin
    charA := Ord(finalHASH[(counter*4)+1]);

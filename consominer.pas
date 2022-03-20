@@ -61,7 +61,7 @@ MyCounter := 100000000;
 MyID := TNumber-1;
 ThisPrefix := MAINPREFIX+GetPrefix(MinerID)+GetPrefix(MyID);
 ThisPrefix := AddCharR('!',ThisPrefix,9);
-Writeln(Format('Starting Thread %d with prefix %s ',[MyID,ThisPrefix]));
+//Writeln(Format('Starting Thread %d with prefix %s ',[MyID,ThisPrefix]));
 While ((not FinishMiners) and (not EndThisThread)) do
    begin
    BaseHash := ThisPrefix+MyCounter.ToString;
@@ -73,7 +73,7 @@ While ((not FinishMiners) and (not EndThisThread)) do
       ThisSolution.Target:=TargetHash;
       ThisSolution.Hash  :=BaseHash;
       ThisSolution.Diff  :=ThisDiff;
-      AddSolution(ThisSolution);
+      if not testing then AddSolution(ThisSolution);
       end;
    if not testing then
       begin
@@ -125,7 +125,6 @@ While not FinishProgram do
             PauseMiners := false;
             for counter2 := 1 to CPUCount do
                 begin
-                ThreadPrefix := counter2;
                 ArrMiners[counter2-1] := TMinerThread.Create(true,counter2);
                 ArrMiners[counter2-1].FreeOnTerminate:=true;
                 ArrMiners[counter2-1].Start;
@@ -226,7 +225,7 @@ REPEAT
       Testing:= true;
       for counter :=1 to MaxCPU do
          begin
-         writeln('Testing '+HashesToTest.toString+' hashes with '+counter.ToString+' CPUs: ');
+         write('Testing '+HashesToTest.toString+' hashes with '+counter.ToString+' CPUs: ');
          TestStart := GetTickCount64;
          FinishMiners := false;
          ActiveMiners := counter;
@@ -309,7 +308,6 @@ REPEAT
       Writeln(Format('%s / Target: %s / %s / [%d]' ,[UpTime,Copy(TargetHash,1,10),SourceStr,TotalMinedBlocks]));
       for counter2 := 1 to CPUCount do
          begin
-         ThreadPrefix := counter2;
          ArrMiners[counter2-1] := TMinerThread.Create(true,counter2);
          ArrMiners[counter2-1].FreeOnTerminate:=true;
          ArrMiners[counter2-1].Start;
