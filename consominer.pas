@@ -32,6 +32,7 @@ var
   CPUspeed: extended;
   HashesToTest : integer = 10000;
   FirstRun : boolean = true;
+  CPUsToUse : integer = 0;
 
 Constructor TMinerThread.Create(CreateSuspended : boolean; const Thisnumber:integer);
 Begin
@@ -61,7 +62,6 @@ MyCounter := 100000000;
 MyID := TNumber-1;
 ThisPrefix := MAINPREFIX+GetPrefix(MinerID)+GetPrefix(MyID);
 ThisPrefix := AddCharR('!',ThisPrefix,9);
-//Writeln(Format('Starting Thread %d with prefix %s ',[MyID,ThisPrefix]));
 While ((not FinishMiners) and (not EndThisThread)) do
    begin
    BaseHash := ThisPrefix+MyCounter.ToString;
@@ -140,11 +140,11 @@ While not FinishProgram do
          begin
          MiningSpeed := GetTotalHashes / (UTCTime-LastSpeedUpdate);
          if MiningSpeed <0 then MiningSpeed := 0;
-         if SyncErrorStr <> '' then write(#13,Format('%s',[SyncErrorStr]))
+         if SyncErrorStr <> '' then write(Format(' %s',[SyncErrorStr]),#13)
          else
             begin
-            if OpenThreads>0 then write(#13,Format('[%d] Age: %4d / Best: %10s / Speed: %8.2f H/s / {%d}',[OpenThreads,BlockAge,Copy(TargetDiff,1,10),MiningSpeed,GoodThis]))
-            else write(#13,Format('%0:-79s',['Waiting next block']));
+            if OpenThreads>0 then write(Format(' [%d] Age: %4d / Best: %10s / Speed: %8.2f H/s / {%d}',[OpenThreads,BlockAge,Copy(TargetDiff,1,10),MiningSpeed,GoodThis]),#13)
+            else write(Format(' %s',['Waiting next block                                          ']),#13);
             end;
          LastSpeedUpdate := UTCTime;
          end;
@@ -181,7 +181,7 @@ loaddata();
 LoadSeedNodes;
 writeln('Consominer Nosohash '+AppVersion);
 writeln('Built using FPC '+fpcVersion);
-writeln('Hashing optimizations by Equinox');
+writeln('Hashing optimizations by @Equinox');
 Writeln(GetOs+' --- '+MaxCPU.ToString+' CPUs --- '+Length(array_nodes).ToString+' Nodes');
 writeln('Using '+address+' with '+CPUCount.ToString+' cores');
 if not autostart then writeln('Please type help to get a list of commands');
@@ -222,8 +222,11 @@ REPEAT
       end
    else if Uppercase(Parameter(command,0)) = 'TEST' then
       begin
+      CPUsToUse := StrToIntDef(Parameter(command,1),MaxCPU);
+      SetLength(ArrMiners,0);
+      SetLength(ArrMiners,CPUsToUse);
       Testing:= true;
-      for counter :=1 to MaxCPU do
+      for counter :=1 to CPUsToUse do
          begin
          write('Testing '+HashesToTest.toString+' hashes with '+counter.ToString+' CPUs: ');
          TestStart := GetTickCount64;

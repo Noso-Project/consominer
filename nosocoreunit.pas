@@ -87,7 +87,7 @@ function ClearLeadingCeros(numero:string):string;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
-  AppVersion = '0.53';
+  AppVersion = '0.60';
   MaxDiff    = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
   HasheableChars = '!"#$%&'#39')*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
   B58Alphabet : string = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -170,7 +170,7 @@ implementation
 Function GetOS():string;
 Begin
 Result := 'Unknown';
-{$IFDEF Linux}
+{$IFDEF UNIX}
 result := 'Linux';
 {$ENDIF}
 {$IFDEF WINDOWS}
@@ -260,7 +260,7 @@ Writeln('address {address}      -> The miner address (not custom)');
 Writeln('cpu {number}           -> Number of cores for Mining');
 Writeln('autostart {true/false} -> Start Mining directly');
 Writeln('minerid [0-8100]       -> Optional unique miner ID');
-Writeln('test                   -> Speed test from 1 to Max CPUs');
+Writeln('test [cpus]            -> Speed test from 1 to MaxCPUs or cpus');
 Writeln('mine                   -> Start Mining with current settings');
 Writeln('exit                   -> Close the app');
 Writeln('');
@@ -566,7 +566,7 @@ If UpperCase(ThisSource) = 'MAINNET' then
    begin
    writeln();
    ReachedNodes := SyncNodes;
-   if ReachedNodes >= (Length(array_nodes) div 2)+1 then
+   if ReachedNodes >= (Length(array_nodes) div 2) then
       begin
       Consensus := GetConsensus;
       SourceStr := ThisSource;
