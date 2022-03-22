@@ -6,7 +6,7 @@ uses
   {$IFDEF UNIX}
    cthreads,
   {$ENDIF}
-  Classes, sysutils, strutils, nosocoreunit, NosoDig.Crypto, Consominerunit
+  Classes, sysutils, strutils, nosocoreunit, NosoDig.Crypto
   { you can add units after this };
 
 Type

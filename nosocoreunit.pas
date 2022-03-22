@@ -84,6 +84,9 @@ function BMDecTo58(numero:string):string;
 function BMB58resumen(numero58:string):string;
 Function BMDividir(Numero1,Numero2:string):DivResult;
 function ClearLeadingCeros(numero:string):string;
+Procedure SetOMT(value:integer);
+Procedure DecreaseOMT();
+Function GetOMTValue():Integer;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
@@ -115,6 +118,7 @@ var
   ArrSources : Array of string;
 
   // Critical sections
+  CS_MinerThreads  : TRTLCriticalSection;
   CS_MinerData    : TRTLCriticalSection;
   CS_Solutions    : TRTLCriticalSection;
   CS_Log          : TRTLCriticalSection;
@@ -134,6 +138,7 @@ var
   CurrentBlockEnd : Int64 = 0;
   CurrentBlock : integer = 0;
   NewBlock     : boolean = false;
+  OpenMinerThreads : Integer = 0;                   {CS Protected}
   TargetHash : string = '00000000000000000000000000000000';
   TargetDiff : String = MaxDiff;
     TargetZeros : integer = 0;
@@ -1144,6 +1149,33 @@ for count := 1+movepos to length(numero) do
 if result = '' then result := '0';
 if ((movepos=1) and (result <>'0')) then result := '-'+result;
 End;
+
+Procedure SetOMT(value:integer);
+Begin
+EnterCriticalSection(CS_MinerThreads);
+OpenMinerThreads := value;
+LeaveCriticalSection(CS_MinerThreads);
+End;
+
+Procedure DecreaseOMT();
+Begin
+EnterCriticalSection(CS_MinerThreads);
+OpenMinerThreads := OpenMinerThreads-1;
+LeaveCriticalSection(CS_MinerThreads);
+End;
+
+Function GetOMTValue():Integer;
+Begin
+EnterCriticalSection(CS_MinerThreads);
+Result := OpenMinerThreads;
+LeaveCriticalSection(CS_MinerThreads);
+End;
+
+INITIALIZATION
+InitCriticalSection(CS_MinerThreads);
+
+FINALIZATION
+LEaveCriticalSection(CS_MinerThreads);
 
 END.// END UNIT
 
