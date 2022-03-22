@@ -87,7 +87,7 @@ function ClearLeadingCeros(numero:string):string;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
-  AppVersion = '0.60';
+  AppVersion = '0.61';
   MaxDiff    = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
   HasheableChars = '!"#$%&'#39')*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
   B58Alphabet : string = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';

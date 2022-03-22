@@ -6,7 +6,7 @@ uses
   {$IFDEF UNIX}
    cthreads,
   {$ENDIF}
-  Classes, sysutils, strutils, nosocoreunit {$IFDEF UNIX}, UTF8Process{$ENDIF}, NosoDig.Crypto
+  Classes, sysutils, strutils, nosocoreunit, NosoDig.Crypto, Consominerunit
   { you can add units after this };
 
 Type
@@ -58,7 +58,6 @@ var
   TempHashes : integer = 0;
   LastRefresh : int64 = 0;
 Begin
-MyCounter := 100000000;
 MyID := TNumber-1;
 ThisPrefix := MAINPREFIX+GetPrefix(MinerID)+GetPrefix(MyID);
 ThisPrefix := AddCharR('!',ThisPrefix,9);
@@ -85,7 +84,7 @@ While ((not FinishMiners) and (not EndThisThread)) do
       end;
    if ((MyCounter >= 100000000+HashesToTest) and (Testing)) then EndThisThread := true;
    end;
-dec(OpenThreads);
+DecreaseOMT;
 End;
 
 procedure TMainThread.Execute;
@@ -239,10 +238,10 @@ REPEAT
             ArrMiners[counter2-1].Start;
             sleep(1);
             end;
-         OpenThreads := counter;
+         SetOMT(counter);
          REPEAT
             sleep(1)
-         until OpenThreads = 0;
+         UNTIL GetOMTValue = 0;
          TestEnd := GetTickCount64;
          TestTime := (TestEnd-TestStart);
          CPUSpeed := HashesToTest/(testtime/1000);
