@@ -33,6 +33,7 @@ var
   HashesToTest : integer = 10000;
   FirstRun : boolean = true;
   CPUsToUse : integer = 0;
+  MinerThread : TMinerThread;
 
 Constructor TMinerThread.Create(CreateSuspended : boolean; const Thisnumber:integer);
 Begin
@@ -57,6 +58,7 @@ var
   EndThisThread : boolean = false;
   TempHashes : integer = 0;
   LastRefresh : int64 = 0;
+  ThreadBest  : string = '0000FFFFFFFFFFFFFFFFFFFFFFFFFFFF';
 Begin
 MyID := TNumber-1;
 ThisPrefix := MAINPREFIX+GetPrefix(MinerID)+GetPrefix(MyID);
@@ -67,11 +69,12 @@ While ((not FinishMiners) and (not EndThisThread)) do
    MyCounter := MyCounter+1;TempHashes := TempHashes+1;
    ThisHash := NosoHash(BaseHash+MiningAddress);
    ThisDiff := GetHashDiff(TargetHash,ThisHash);
-   if ThisDiff<TargetDiff then
+   if ThisDiff<ThreadBest then
       begin
       ThisSolution.Target:=TargetHash;
       ThisSolution.Hash  :=BaseHash;
       ThisSolution.Diff  :=ThisDiff;
+      ThreadBest := ThisDiff;
       if not testing then AddSolution(ThisSolution);
       end;
    if not testing then
@@ -233,9 +236,9 @@ REPEAT
          ActiveMiners := counter;
          for counter2 := 1 to counter do
             begin
-            ArrMiners[counter2-1] := TMinerThread.Create(true,counter2);
-            ArrMiners[counter2-1].FreeOnTerminate:=true;
-            ArrMiners[counter2-1].Start;
+            MinerThread := TMinerThread.Create(true,counter2);
+            MinerThread.FreeOnTerminate:=true;
+            MinerThread.Start;
             sleep(1);
             end;
          SetOMT(counter);
