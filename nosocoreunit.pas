@@ -77,7 +77,6 @@ function GetPrefix(NumberID:integer):string;
 Function BlockAge():integer;
 Procedure AddIntervalHashes(hashes:int64);
 function GetTotalHashes : integer;
-function GetDiffLeadingZeros(Hash:String):integer;
 function IsValidHashAddress(Address:String):boolean;
 function IsValid58(base58text:string):boolean;
 function BMDecTo58(numero:string):string;
@@ -141,7 +140,6 @@ var
   OpenMinerThreads : Integer = 0;                   {CS Protected}
   TargetHash : string = '00000000000000000000000000000000';
   TargetDiff : String = MaxDiff;
-    TargetZeros : integer = 0;
   FinishMiners : boolean = true;
   PauseMiners : Boolean = false;
   ActiveMiners : integer;
@@ -548,7 +546,6 @@ if Result.block > CurrentBlock then
    else WriteLn(#13,Format('Block : %d / Miner : %s',[Result.block,Result.LBMiner]));
    TargetHash := Result.LBHash;
    TargetDiff := Result.NMSDiff;
-   TargetZeros := 0;
    CurrentBlock := Result.block;
    NewBlock := true;
    LeaveCriticalSection(CS_MinerData);
@@ -606,7 +603,6 @@ else
             EnterCriticalSection(CS_MinerData);
             TargetHash := Parameter(PoolString,4);
             TargetDiff := Parameter(PoolString,3);
-            TargetZeros := 0;
             CurrentBlock := StrToIntDef(Parameter(PoolString,5),0);
             NewBlock := true;
             LeaveCriticalSection(CS_MinerData);
@@ -661,7 +657,7 @@ var
   FirstChange : array[1..128] of string;
   finalHASH : string;
   ThisSum : integer;
-  charA,charB,charC,charD, CharE, CharF, CharG, CharH:integer;
+  charA,charB,charC,charD:integer;
   Filler : string = '%)+/5;=CGIOSYaegk';
 
   Function GetClean(number:integer):integer;
@@ -731,17 +727,11 @@ Begin
 result := 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
 for counter := 1 to 32 do
    begin
-   if ((counter <= TargetZeros) and (ThisHash[counter]<>Target[counter]) ) then
-      begin
-      result := MaxDiff;
-      exit;
-      end;
    ValA := Hex2Dec(ThisHash[counter]);
    ValB := Hex2Dec(Target[counter]);
    Diference := Abs(ValA - ValB);
    ResChar := UPPERCASE(IntToHex(Diference,1));
    Resultado := Resultado+ResChar;
-
    end;
 Result := Resultado;
 End;
@@ -901,7 +891,6 @@ If success then
       begin
       EnterCriticalSection(CS_MinerData);
       TargetDiff := NewDiff;
-      TargetZeros := GetDiffLeadingZeros(TargetDiff);
       LeaveCriticalSection(CS_MinerData);
       end;
    WasGood := StrToBoolDef(Parameter(Resultado,0),false);
@@ -1019,15 +1008,6 @@ EnterCriticalSection(CS_Interval);
 Result := ThreadsIntervalHashes;
 ThreadsIntervalHashes := 0;
 LeaveCriticalSection(CS_Interval);
-End;
-
-function GetDiffLeadingZeros(Hash:String):integer;
-var
-  counter : integer = 1;
-Begin
-for counter := 1 to length(Hash) do
-   if hash[counter]<> '0' then break;
-result := counter-1;
 End;
 
 // Checks if a string is a valid address hash
@@ -1175,7 +1155,7 @@ INITIALIZATION
 InitCriticalSection(CS_MinerThreads);
 
 FINALIZATION
-LEaveCriticalSection(CS_MinerThreads);
+LeaveCriticalSection(CS_MinerThreads);
 
 END.// END UNIT
 

@@ -27,7 +27,6 @@ Type
     end;
 
 var
-  ArrMiners : Array of TMinerThread;
   MainThread : TMainThread;
   CPUspeed: extended;
   HashesToTest : integer = 10000;
@@ -127,9 +126,9 @@ While not FinishProgram do
             PauseMiners := false;
             for counter2 := 1 to CPUCount do
                 begin
-                ArrMiners[counter2-1] := TMinerThread.Create(true,counter2);
-                ArrMiners[counter2-1].FreeOnTerminate:=true;
-                ArrMiners[counter2-1].Start;
+                MinerThread := TMinerThread.Create(true,counter2);
+                MinerThread.FreeOnTerminate:=true;
+                MinerThread.Start;
                 Sleep(1);
                 end;
             OpenThreads := CPUCount;
@@ -177,7 +176,6 @@ SetLEngth(RejectedSols,0);
 SetLEngth(LogLines,0);
 SetLEngth(ArrSources,0);
 MaxCPU:= {$IFDEF UNIX}GetSystemThreadCount{$ELSE}GetCPUCount{$ENDIF};
-SetLength(ArrMiners,MaxCPU);  // Avoid overclocking
 if not FileExists('consominer.cfg') then savedata();
 loaddata();
 LoadSeedNodes;
@@ -225,8 +223,6 @@ REPEAT
    else if Uppercase(Parameter(command,0)) = 'TEST' then
       begin
       CPUsToUse := StrToIntDef(Parameter(command,1),MaxCPU);
-      SetLength(ArrMiners,0);
-      SetLength(ArrMiners,CPUsToUse);
       Testing:= true;
       for counter :=1 to CPUsToUse do
          begin
@@ -250,8 +246,6 @@ REPEAT
          CPUSpeed := HashesToTest/(testtime/1000);
          writeln('['+FormatFLoat('0.000',testtime/1000)+' sec] '+FormatFloat('0.00',CPUSpeed)+' -> '+FormatFloat('0.00',CPUSpeed*counter)+' h/s');
          end;
-      SetLength(ArrMiners,0);
-      SetLength(ArrMiners,MaxCPU);
       Testing := false;
       end
    else if Uppercase(Parameter(command,0)) = 'EXIT' then
@@ -313,9 +307,9 @@ REPEAT
       Writeln(Format('%s / Target: %s / %s / [%d]' ,[UpTime,Copy(TargetHash,1,10),SourceStr,TotalMinedBlocks]));
       for counter2 := 1 to CPUCount do
          begin
-         ArrMiners[counter2-1] := TMinerThread.Create(true,counter2);
-         ArrMiners[counter2-1].FreeOnTerminate:=true;
-         ArrMiners[counter2-1].Start;
+         MinerThread := TMinerThread.Create(true,counter2);
+         MinerThread.FreeOnTerminate:=true;
+         MinerThread.Start;
          sleep(1);
          end;
       OpenThreads := CPUCount;
