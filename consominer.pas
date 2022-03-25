@@ -131,7 +131,7 @@ While not FinishProgram do
                 MinerThread.Start;
                 Sleep(1);
                 end;
-            OpenThreads := CPUCount;
+            SetOMT(CPUCount);
             writeln(#13,'--------------------------------------------------------------------');
             Writeln(Format('Block: %d / Address: %s / Cores: %d',[CurrentBlock,address,cpucount]));
             Writeln(Format('%s / Target: %s / %s / [%d]' ,[UpTime,Copy(TargetHash,1,10),SourceStr,TotalMinedBlocks]));
@@ -144,7 +144,7 @@ While not FinishProgram do
          if SyncErrorStr <> '' then write(Format(' %s',[SyncErrorStr]),#13)
          else
             begin
-            if OpenThreads>0 then write(Format(' [%d] Age: %4d / Best: %10s / Speed: %8.2f H/s / {%d}',[OpenThreads,BlockAge,Copy(TargetDiff,1,10),MiningSpeed,GoodThis]),#13)
+            if OpenThreads>0 then write(Format(' [%d] Age: %4d / Best: %10s / Speed: %8.2f H/s / {%d}',[GetOMTValue,BlockAge,Copy(TargetDiff,1,10),MiningSpeed,GoodThis]),#13)
             else write(Format(' %s',['Waiting next block                                          ']),#13);
             end;
          LastSpeedUpdate := UTCTime;
@@ -312,7 +312,8 @@ REPEAT
          MinerThread.Start;
          sleep(1);
          end;
-      OpenThreads := CPUCount;
+      SetOMT(CPUCount);
+      //OpenThreads := CPUCount;
       Repeat
          Sleep(10);
       until FinishProgram;
