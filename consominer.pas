@@ -124,14 +124,14 @@ While not FinishProgram do
             LastSpeedCounter := 100000000;
             FinishMiners := false;
             PauseMiners := false;
-            for counter2 := 1 to CPUCount do
+            for counter2 := 1 to CPUsToUse do
                 begin
                 MinerThread := TMinerThread.Create(true,counter2);
                 MinerThread.FreeOnTerminate:=true;
                 MinerThread.Start;
                 Sleep(1);
                 end;
-            SetOMT(CPUCount);
+            SetOMT(CPUsToUse);
             writeln(#13,'--------------------------------------------------------------------');
             Writeln(Format('Block: %d / Address: %s / Cores: %d',[CurrentBlock,address,cpucount]));
             Writeln(Format('%s / Target: %s / %s / [%d]' ,[UpTime,Copy(TargetHash,1,10),SourceStr,TotalMinedBlocks]));
@@ -144,7 +144,7 @@ While not FinishProgram do
          if SyncErrorStr <> '' then write(Format(' %s',[SyncErrorStr]),#13)
          else
             begin
-            if OpenThreads>0 then write(Format(' [%d] Age: %4d / Best: %10s / Speed: %8.2f H/s / {%d}',[GetOMTValue,BlockAge,Copy(TargetDiff,1,10),MiningSpeed,GoodThis]),#13)
+            if GetOMTValue>0 then write(Format(' [%d] Age: %4d / Best: %10s / Speed: %8.2f H/s / {%d}',[GetOMTValue,BlockAge,Copy(TargetDiff,1,10),MiningSpeed,GoodThis]),#13)
             else write(Format(' %s',['Waiting next block                                          ']),#13);
             end;
          LastSpeedUpdate := UTCTime;
@@ -282,6 +282,7 @@ REPEAT
          continue;
          end
       else WriteLn('Sources found: '+Length(ArrSources).ToString);
+      CPUsToUse := StrToIntDef(Parameter(command,1),MaxCPU);
       LastSourceTry := -1;
       ToLog('********************************************************************************');
       ToLog('Mining session opened');
@@ -305,15 +306,14 @@ REPEAT
       writeln('--------------------------------------------------------------------');
       Writeln(Format('Block: %d / Address: %s(%s...) / Cores: %d',[CurrentBlock, address, Copy(miningaddress,1,5),cpucount]));
       Writeln(Format('%s / Target: %s / %s / [%d]' ,[UpTime,Copy(TargetHash,1,10),SourceStr,TotalMinedBlocks]));
-      for counter2 := 1 to CPUCount do
+      for counter2 := 1 to CPUsToUse do
          begin
          MinerThread := TMinerThread.Create(true,counter2);
          MinerThread.FreeOnTerminate:=true;
          MinerThread.Start;
          sleep(1);
          end;
-      SetOMT(CPUCount);
-      //OpenThreads := CPUCount;
+      SetOMT(CPUsToUse);
       Repeat
          Sleep(10);
       until FinishProgram;
