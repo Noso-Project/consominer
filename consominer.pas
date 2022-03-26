@@ -282,7 +282,7 @@ REPEAT
          continue;
          end
       else WriteLn('Sources found: '+Length(ArrSources).ToString);
-      CPUsToUse := StrToIntDef(Parameter(command,1),MaxCPU);
+      CPUsToUse := StrToIntDef(Parameter(command,1),CPUCount);
       LastSourceTry := -1;
       ToLog('********************************************************************************');
       ToLog('Mining session opened');
