@@ -89,7 +89,7 @@ Function GetOMTValue():Integer;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
-  AppVersion = '0.62';
+  AppVersion = '0.63';
   MaxDiff    = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
   HasheableChars = '!"#$%&'#39')*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
   B58Alphabet : string = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
