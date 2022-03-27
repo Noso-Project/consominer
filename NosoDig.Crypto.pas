@@ -35,30 +35,24 @@ uses
   MD5;
 
 var
-  _CleanAsciiLookup: array[1..1024] of Byte;
-  _HexToBinLookup  : array[48.. 70] of Byte;
+  _CleanAsciiLookup: array[1..512] of Byte;
+  _HexToBinLookup  : array[48..70] of Byte;
 
 
-function Mutate(sHash: THash128; const nSteps: Smallint=128): TByteHash128;
+function Mutate(sHash: THash128; const nSteps: Smallint=128): TByteHash128;{$ifndef DEBUG}inline;{$endif}
 var
   LHash: TByteHash128 absolute sHash;
-  cA, cB, cZ: Byte;
-  I, J, HashLen: Integer;
+  bFirst: Byte;
+  I, N, HashLen: Integer;
 begin
   Result[1] := 0;
   HashLen := Length(LHash);
-  for J:=1 to nSteps do
+  for N:=1 to nSteps do
   begin
-    cZ := LHash[1];
-    for I:=1 to HashLen do
-    begin
-      cA := LHash[I];
-      if I < HashLen then
-        cB := LHash[I+1]
-      else
-        cB := cZ;
-      LHash[I] := _CleanAsciiLookup[cA+cB];
-    end;
+    bFirst := LHash[1];
+    for I:=1 to HashLen-1 do
+      LHash[I] := _CleanAsciiLookup[LHash[  I] + LHash[I+1]];
+    LHash[128] := _CleanAsciiLookup[LHash[128] + bFirst];
   end;
   Move(LHash, Result, SizeOf(TByteHash128));
 end;
@@ -74,15 +68,14 @@ begin
   Result := '';
   RHash  := '';
 
+  if Length(Source) > 63 then
+    Source := '';
   for N := 1 to Length(Source) do
     if (Ord(Source[N]) < 33) or (Ord(Source[N]) > 126) then
     begin
       Source := '';
       Break;
     end;
-
-  if Length(Source) > 63 then
-    Source := '';
 
   { fill Source with FILLER string }
   repeat
@@ -103,25 +96,11 @@ end;
 
 function GetHashDiff(const HashA, HashB: THash32): THash32;
 var
-  I, D: Integer;
-  ValA, ValB: Byte;
-  C: Char;
-  RHash: THash32;
+  I: Integer;
 begin
-  RHash := MAX_DIFF;
+  Result := MAX_DIFF;
   for I := 1 to 32 do
-  begin
-    if HashA[I] = '0' then
-      C := HashB[I]
-    else begin
-      ValA := FastHexToBin(HashA[I]);
-      ValB := FastHexToBin(HashB[I]);
-      D := Abs(ValB - ValA);
-      C := HexStr(D, 1)[1];
-    end;
-    RHash[I] := C;
-  end;
-  Result := RHash;
+    Result[I] := HexStr(Abs(FastHexToBin(HashB[I])-FastHexToBin(HashA[I])), 1)[1];
 end;
 
 function FastBinToHex(const B: Byte): Char;{$ifndef DEBUG}inline;{$endif}
@@ -138,11 +117,20 @@ begin
   Result := _HexToBinLookup[Ord(C)];
 end;
 
-procedure FillCleanAsciiLookup;
+procedure FillLookupTables;{$ifndef DEBUG}inline;{$endif}
 var
   I, N: Word;
+  c: Char;
 begin
-  for I:=1 to 1024 do
+  FillChar(_HexToBinLookup, Length(_HexToBinLookup), 0);
+  for c:='0' to '9' do
+    _HexToBinLookup[Ord(c)] := Ord(c)-48;
+  for c:='A' to 'F' do
+    _HexToBinLookup[Ord(c)] := Ord(c)-55;
+
+  { ASCII lookup table }
+  FillChar(_CleanAsciiLookup, Length(_CleanAsciiLookup), 0);
+  for I:=Low(_CleanAsciiLookup) to High(_CleanAsciiLookup) do
   begin
     N := I;
     while N > 126 do Dec(N, 95);
@@ -150,19 +138,8 @@ begin
   end;
 end;
 
-{ HexToBin Fast lookup table }
-procedure FillHexToBinLookup;
-var c: Char;
-begin
-  FillChar(_HexToBinLookup, Length(_HexToBinLookup), $FF);
-  for c:='0' to '9' do
-    _HexToBinLookup[Ord(c)] := Ord(c)-48;
-  for c:='A' to 'F' do
-    _HexToBinLookup[Ord(c)] := Ord(c)-55;
-end;
-
 initialization
-  FillCleanAsciiLookup;
-  FillHexToBinLookup;
+  FillLookupTables;
 
 end.
+
