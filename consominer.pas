@@ -61,7 +61,7 @@ var
 Begin
 MyID := TNumber-1;
 ThisPrefix := MAINPREFIX+GetPrefix(MinerID)+GetPrefix(MyID);
-ThisPrefix := AddCharR('!',ThisPrefix,9);
+ThisPrefix := AddCharR('!',ThisPrefix,18);
 While ((not FinishMiners) and (not EndThisThread)) do
    begin
    BaseHash := ThisPrefix+MyCounter.ToString;
@@ -74,7 +74,12 @@ While ((not FinishMiners) and (not EndThisThread)) do
       ThisSolution.Hash  :=BaseHash;
       ThisSolution.Diff  :=ThisDiff;
       ThreadBest := ThisDiff;
-      if not testing then AddSolution(ThisSolution);
+      if not testing then
+         begin
+         if ThisHash = NosoHashOld(BaseHash+MiningAddress) then
+            AddSolution(ThisSolution)
+         else ToLog('DIFFERENT Nosohash: '+BaseHash+MiningAddress);
+         end;
       end;
    if not testing then
       begin
