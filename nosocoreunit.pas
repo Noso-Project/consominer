@@ -86,10 +86,11 @@ function ClearLeadingCeros(numero:string):string;
 Procedure SetOMT(value:integer);
 Procedure DecreaseOMT();
 Function GetOMTValue():Integer;
+function Int2Curr(Value: int64): string;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
-  AppVersion = '0.63';
+  AppVersion = '0.64';
   MaxDiff    = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
   HasheableChars = '!"#$%&'#39')*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
   B58Alphabet : string = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -126,6 +127,8 @@ var
   // Mining
   MAINPREFIX : String = '';
   MAINBALANCE : int64;
+  PoolBALANCE : int64 = 0;
+  BalanceToShow : String ='';
   MiningAddress : String = '';
   ThreadsIntervalHashes : int64 = 0;
   OpenThreads : integer = 0;
@@ -166,7 +169,7 @@ var
                           '107.175.59.177:8080 '+
                           '107.172.193.176:8080 '+
                           '107.175.194.151:8080 '+
-                          '192.3.173.184:8080';
+                          '192.3.73.184:8080';
 
 implementation
 
@@ -604,6 +607,7 @@ else
             TargetHash := Parameter(PoolString,4);
             TargetDiff := Parameter(PoolString,3);
             CurrentBlock := StrToIntDef(Parameter(PoolString,5),0);
+            PoolBALANCE := StrToIntDef(Parameter(PoolString,6),0);
             NewBlock := true;
             LeaveCriticalSection(CS_MinerData);
             ToLog('-> Block '+CurrentBlock.ToString+' to '+SourceStr);
@@ -1150,6 +1154,14 @@ EnterCriticalSection(CS_MinerThreads);
 Result := OpenMinerThreads;
 LeaveCriticalSection(CS_MinerThreads);
 End;
+
+function Int2Curr(Value: int64): string;
+begin
+Result := IntTostr(Abs(Value));
+result :=  AddChar('0',Result, 9);
+Insert('.',Result, Length(Result)-7);
+If Value <0 THen Result := '-'+Result;
+end;
 
 INITIALIZATION
 InitCriticalSection(CS_MinerThreads);

@@ -62,6 +62,7 @@ Begin
 MyID := TNumber-1;
 ThisPrefix := MAINPREFIX+GetPrefix(MinerID)+GetPrefix(MyID);
 ThisPrefix := AddCharR('!',ThisPrefix,18);
+if not solomining then ThreadBest := AddCharR('F',TargetDiff,32);
 While ((not FinishMiners) and (not EndThisThread)) do
    begin
    BaseHash := ThisPrefix+MyCounter.ToString;
@@ -73,7 +74,7 @@ While ((not FinishMiners) and (not EndThisThread)) do
       ThisSolution.Target:=TargetHash;
       ThisSolution.Hash  :=BaseHash;
       ThisSolution.Diff  :=ThisDiff;
-      ThreadBest := ThisDiff;
+      if solomining then ThreadBest := ThisDiff;
       if not testing then
          begin
          if ThisHash = NosoHashOld(BaseHash+MiningAddress) then
@@ -138,8 +139,9 @@ While not FinishProgram do
                 end;
             SetOMT(CPUsToUse);
             writeln(#13,'--------------------------------------------------------------------');
-            Writeln(Format('Block: %d / Address: %s / Cores: %d',[CurrentBlock,address,cpucount]));
-            Writeln(Format('%s / Target: %s / %s / [%d]' ,[UpTime,Copy(TargetHash,1,10),SourceStr,TotalMinedBlocks]));
+            if SoloMining then BalanceToShow := TotalMinedBlocks.ToString else BalanceToShow := Int2Curr(PoolBalance);
+            Writeln(Format('Block: %d / Address: %s(%s...) / Cores: %d',[CurrentBlock, address, Copy(miningaddress,1,5),cpucount]));
+            Writeln(Format('%s / Target: %s / %s / [%s]' ,[UpTime,Copy(TargetHash,1,10),SourceStr,BalanceToShow]));
             end;
          end;
       if ( (LastSpeedUpdate+4 < UTCTime) and (not Testing) ) then
@@ -308,9 +310,10 @@ REPEAT
       StartMiningTimeStamp := UTCTime;
       SentThis := 0;
       GoodThis := 0;
+      if SoloMining then BalanceToShow := IntToStr(TotalMinedBlocks) else BalanceToShow := Int2Curr(PoolBalance);
       writeln('--------------------------------------------------------------------');
       Writeln(Format('Block: %d / Address: %s(%s...) / Cores: %d',[CurrentBlock, address, Copy(miningaddress,1,5),cpucount]));
-      Writeln(Format('%s / Target: %s / %s / [%d]' ,[UpTime,Copy(TargetHash,1,10),SourceStr,TotalMinedBlocks]));
+      Writeln(Format('%s / Target: %s / %s / [%s]' ,[UpTime,Copy(TargetHash,1,10),SourceStr,BalanceToShow]));
       for counter2 := 1 to CPUsToUse do
          begin
          MinerThread := TMinerThread.Create(true,counter2);
