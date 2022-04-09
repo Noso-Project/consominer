@@ -90,7 +90,7 @@ function Int2Curr(Value: int64): string;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
-  AppVersion = '0.64';
+  AppVersion = '0.65';
   MaxDiff    = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
   HasheableChars = '!"#$%&'#39')*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
   B58Alphabet : string = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
