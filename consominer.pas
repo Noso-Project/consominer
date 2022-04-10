@@ -139,9 +139,12 @@ While not FinishProgram do
                 end;
             SetOMT(CPUsToUse);
             writeln(#13,'--------------------------------------------------------------------');
-            if SoloMining then BalanceToShow := TotalMinedBlocks.ToString else BalanceToShow := Int2Curr(PoolBalance);
+            if SoloMining then BalanceToShow := TotalMinedBlocks.ToString
+            else BalanceToShow := Int2Curr(PoolBalance)+' ('+PoolTillPayment.ToString+')';
             Writeln(Format('Block: %d / Address: %s(%s...) / Cores: %d',[CurrentBlock, address, Copy(miningaddress,1,5),cpucount]));
             Writeln(Format('%s / Target: %s / %s / [%s]' ,[UpTime,Copy(TargetHash,1,10),SourceStr,BalanceToShow]));
+            if not SoloMining then
+               WriteLn(Format('PoolRate: %s / LastPay: %d->%s',[HashrateToShow(PoolHashRate),PoolLastPayment.block,Int2Curr(PoolLastPayment.ammount)]));
             end;
          end;
       if ( (LastSpeedUpdate+4 < UTCTime) and (not Testing) ) then
@@ -171,6 +174,7 @@ InitCriticalSection(CS_Interval);
 Assignfile(datafile, 'consominer.cfg');
 Assignfile(logfile, 'log.txt');
 Assignfile(OldLogFile, 'oldlogs.txt');
+Assignfile(PaysFile, 'minerpayments.txt');
 Consensus := Default(TNodeData);
 If not ResetLogs then
    begin
@@ -184,6 +188,7 @@ SetLEngth(LogLines,0);
 SetLEngth(ArrSources,0);
 MaxCPU:= {$IFDEF UNIX}GetSystemThreadCount{$ELSE}GetCPUCount{$ENDIF};
 if not FileExists('consominer.cfg') then savedata();
+if not FileExists('minerpayments.txt') then createpaymentsfile();
 loaddata();
 LoadSeedNodes;
 writeln('Consominer Nosohash '+AppVersion);
@@ -195,6 +200,7 @@ if not autostart then writeln('Please type help to get a list of commands');
 MainThread := TMainThread.Create(true);
 MainThread.FreeOnTerminate:=true;
 MainThread.Start;
+PoolLastPayment := LoadLastPayment;
 REPEAT
    command := '';
    if FirstRun then
@@ -310,10 +316,13 @@ REPEAT
       StartMiningTimeStamp := UTCTime;
       SentThis := 0;
       GoodThis := 0;
-      if SoloMining then BalanceToShow := IntToStr(TotalMinedBlocks) else BalanceToShow := Int2Curr(PoolBalance);
+      if SoloMining then BalanceToShow := IntToStr(TotalMinedBlocks)
+      else BalanceToShow := Int2Curr(PoolBalance)+' ('+PoolTillPayment.ToString+')';
       writeln('--------------------------------------------------------------------');
       Writeln(Format('Block: %d / Address: %s(%s...) / Cores: %d',[CurrentBlock, address, Copy(miningaddress,1,5),cpucount]));
       Writeln(Format('%s / Target: %s / %s / [%s]' ,[UpTime,Copy(TargetHash,1,10),SourceStr,BalanceToShow]));
+      if not SoloMining then
+         WriteLn(Format('PoolRate: %s / LastPay: %d->%s',[HashrateToShow(PoolHashRate),PoolLastPayment.block,Int2Curr(PoolLastPayment.ammount)]));
       for counter2 := 1 to CPUsToUse do
          begin
          MinerThread := TMinerThread.Create(true,counter2);

@@ -25,6 +25,12 @@ type
    count : integer;
    end;
 
+  TPayment       = packed record
+   block    : integer;
+   ammount  : int64;
+   OrderID  : string[60];
+   end;
+
   TNodeData = packed record
    host : string[60];
    port : integer;
@@ -52,6 +58,9 @@ Procedure ShowHelp();
 Procedure ShowSettings();
 Procedure LoadData();
 function SaveData():boolean;
+Procedure createpaymentsfile();
+function LoadLastPayment():TPayment;
+Procedure InsertNewPayment(paydata:TPayment);
 Function LoadSources():integer;
 function LoadSeedNodes():integer;
 Function GetConsensus():TNodeData;
@@ -87,6 +96,7 @@ Procedure SetOMT(value:integer);
 Procedure DecreaseOMT();
 Function GetOMTValue():Integer;
 function Int2Curr(Value: int64): string;
+Function HashrateToShow(speed:int64):String;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
@@ -98,7 +108,7 @@ CONST
 var
   command:string;
   MaxCPU : integer = 1;
-  DataFile, LogFile, OldLogFile : TextFile;
+  DataFile, LogFile, OldLogFile, PaysFile : TextFile;
   Counter, Counter2 : integer;
 
   // Arrays
@@ -118,7 +128,7 @@ var
   ArrSources : Array of string;
 
   // Critical sections
-  CS_MinerThreads  : TRTLCriticalSection;
+  CS_MinerThreads : TRTLCriticalSection;
   CS_MinerData    : TRTLCriticalSection;
   CS_Solutions    : TRTLCriticalSection;
   CS_Log          : TRTLCriticalSection;
@@ -128,6 +138,9 @@ var
   MAINPREFIX : String = '';
   MAINBALANCE : int64;
   PoolBALANCE : int64 = 0;
+  PoolTillPayment : integer = 0;
+  PoolHashRate    : int64  = 0;
+  PoolLastPayment : TPayment;
   BalanceToShow : String ='';
   MiningAddress : String = '';
   ThreadsIntervalHashes : int64 = 0;
@@ -301,6 +314,42 @@ EXCEPT ON E:EXCEPTION do
    writeln('Error opening data file: '+E.Message);
    end
 END {TRY};
+End;
+
+Procedure createpaymentsfile();
+Begin
+TRY
+rewrite(PaysFile);
+CloseFile(PaysFile);
+EXCEPT ON E:EXCEPTION do
+   begin
+   writeln('Error creating payments file: '+E.Message);
+   Halt(1);
+   end
+END {TRY};
+End;
+
+function LoadLastPayment():TPayment;
+var
+  lastLine : string;
+Begin
+Result := Default(TPayment);
+reset(PaysFile);
+while not eof(PaysFile) do
+   begin
+   ReadLn(PaysFile,LastLine)
+   end;
+Closefile(PaysFile);
+Result.block:=StrToIntDef(Parameter(LastLine,0),0);
+Result.ammount:=StrToInt64Def(Parameter(LastLine,1),0);
+Result.OrderID:=Parameter(LastLine,2);
+End;
+
+Procedure InsertNewPayment(paydata:TPayment);
+Begin
+append(PaysFile);
+Writeln(PaysFile,format('%d %d %s',[PayData.block,PayData.ammount,payData.OrderID]));
+CloseFile(PaysFile);
 End;
 
 Procedure LoadData();
@@ -561,6 +610,8 @@ var
   ReachedNodes : integer = 0;
   ThisSource   : String;
   PoolString : String ='';
+  PoolPayStr : string = '';
+  PoolPayData : TPayment;
 Begin
 Result := False;
 LastSourceTry := LastSourceTry+1;
@@ -607,7 +658,20 @@ else
             TargetHash := Parameter(PoolString,4);
             TargetDiff := Parameter(PoolString,3);
             CurrentBlock := StrToIntDef(Parameter(PoolString,5),0);
-            PoolBALANCE := StrToIntDef(Parameter(PoolString,6),0);
+            PoolBALANCE     := StrToInt64Def(Parameter(PoolString,6),0);
+            PoolTillPayment := StrToIntDef(Parameter(PoolString,7),0);
+            PoolPayStr     := Parameter(PoolString,8);
+               PoolPayStr  := StringReplace(PoolPayStr,':',' ',[rfReplaceAll, rfIgnoreCase]);
+               PoolPayData.block:=StrToIntDef(Parameter(PoolPayStr,0),0);
+               PoolPayData.ammount:=StrToInt64Def(Parameter(PoolPayStr,1),0);
+               PoolPayData.OrderID:=Parameter(PoolPayStr,2);
+               if PoolPayData.OrderID <> PoolLastPayment.OrderID then
+                  begin
+                  PoolLastPayment := PoolPayData;
+                  InsertNewPayment(PoolLastPayment);
+                  Writeln('*** NEW POOL PAYMENT ***')
+                  end;
+            PoolHashRate    := StrToInt64Def(Parameter(PoolString,9),0);
             NewBlock := true;
             LeaveCriticalSection(CS_MinerData);
             ToLog('-> Block '+CurrentBlock.ToString+' to '+SourceStr);
@@ -1162,6 +1226,14 @@ result :=  AddChar('0',Result, 9);
 Insert('.',Result, Length(Result)-7);
 If Value <0 THen Result := '-'+Result;
 end;
+
+Function HashrateToShow(speed:int64):String;
+Begin
+if speed>1000000000 then result := FormatFloat('0.00',speed/1000000000)+' Gh/s'
+else if speed>1000000 then result := FormatFloat('0.00',speed/1000000)+' Mh/s'
+else if speed>1000 then result := FormatFloat('0.00',speed/1000)+' Kh/s'
+else result := speed.ToString+' h/s'
+End;
 
 INITIALIZATION
 InitCriticalSection(CS_MinerThreads);

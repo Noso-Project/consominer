@@ -9,6 +9,7 @@ consominer.exe
 consominer.dbg
 gitinst.txt
 data.txt
+minerpayments.txt
 *.res
 *.lps
 *.mo
