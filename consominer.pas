@@ -31,7 +31,6 @@ var
   CPUspeed: extended;
   HashesToTest : integer = 10000;
   FirstRun : boolean = true;
-  CPUsToUse : integer = 0;
   MinerThread : TMinerThread;
 
 Constructor TMinerThread.Create(CreateSuspended : boolean; const Thisnumber:integer);
@@ -242,7 +241,7 @@ REPEAT
          write('Testing '+HashesToTest.toString+' hashes with '+counter.ToString+' CPUs: ');
          TestStart := GetTickCount64;
          FinishMiners := false;
-         ActiveMiners := counter;
+         SetOMT(Counter);
          for counter2 := 1 to counter do
             begin
             MinerThread := TMinerThread.Create(true,counter2);
@@ -250,7 +249,6 @@ REPEAT
             MinerThread.Start;
             sleep(1);
             end;
-         SetOMT(counter);
          REPEAT
             sleep(1)
          UNTIL GetOMTValue = 0;
@@ -359,5 +357,7 @@ DoneCriticalSection(CS_MinerData);
 DoneCriticalSection(CS_Solutions);
 DoneCriticalSection(CS_Log);
 DoneCriticalSection(CS_Interval);
+FinishProgram := true;
+MainThread.WaitFor;
 END.// END PROGRAM
 

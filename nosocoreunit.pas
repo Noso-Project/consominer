@@ -100,7 +100,7 @@ Function HashrateToShow(speed:int64):String;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
-  AppVersion = '0.65';
+  AppVersion = '0.66';
   MaxDiff    = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
   HasheableChars = '!"#$%&'#39')*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
   B58Alphabet : string = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -108,6 +108,7 @@ CONST
 var
   command:string;
   MaxCPU : integer = 1;
+  CPUsToUse : integer = 0;
   DataFile, LogFile, OldLogFile, PaysFile : TextFile;
   Counter, Counter2 : integer;
 
@@ -158,7 +159,6 @@ var
   TargetDiff : String = MaxDiff;
   FinishMiners : boolean = true;
   PauseMiners : Boolean = false;
-  ActiveMiners : integer;
   TestStart, TestEnd, TestTime : Int64;
   Miner_Prefix : String = '!!!!!!!!!';
   Testing : Boolean = false;
@@ -1209,6 +1209,10 @@ Procedure DecreaseOMT();
 Begin
 EnterCriticalSection(CS_MinerThreads);
 OpenMinerThreads := OpenMinerThreads-1;
+{
+write(format('%2s',[IntToStr(OpenMinerThreads)]));
+write(#08#08);
+}
 LeaveCriticalSection(CS_MinerThreads);
 End;
 
@@ -1239,7 +1243,7 @@ INITIALIZATION
 InitCriticalSection(CS_MinerThreads);
 
 FINALIZATION
-LeaveCriticalSection(CS_MinerThreads);
+DoneCriticalSection(CS_MinerThreads);
 
 END.// END UNIT
 
