@@ -145,6 +145,7 @@ var
   PoolBALANCE : int64 = 0;
   PoolTillPayment : integer = 0;
   PoolHashRate    : int64  = 0;
+  NetworkHashRate : int64  = 0;
   PoolLastPayment : TPayment;
   BalanceToShow : String ='';
   MiningAddress : String = '';
@@ -677,6 +678,7 @@ else
                   Writeln('*** NEW POOL PAYMENT ***')
                   end;
             PoolHashRate    := StrToInt64Def(Parameter(PoolString,9),0);
+            NetworkHashRate    := StrToInt64Def(Parameter(PoolString,10),0);
             NewBlock := true;
             LeaveCriticalSection(CS_MinerData);
             ToLog('-> Block '+CurrentBlock.ToString+' to '+SourceStr);

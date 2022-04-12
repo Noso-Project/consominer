@@ -65,7 +65,8 @@ if not solomining then ThreadBest := AddCharR('F',TargetDiff,32);
 While ((not FinishMiners) and (not EndThisThread)) do
    begin
    BaseHash := ThisPrefix+MyCounter.ToString;
-   MyCounter := MyCounter+1;TempHashes := TempHashes+1;
+   Inc(MyCounter);
+   //MyCounter := MyCounter+1;//TempHashes := TempHashes+1;
    ThisHash := NosoHash(BaseHash+MiningAddress);
    ThisDiff := GetHashDiff(TargetHash,ThisHash);
    if ThisDiff<ThreadBest then
@@ -83,12 +84,15 @@ While ((not FinishMiners) and (not EndThisThread)) do
       end;
    if not testing then
       begin
+      if MyCounter mod 5000 =4999 then AddIntervalHashes(5000);
+      {
       if LastRefresh+4<UTCTime then
          begin
          AddIntervalHashes(TempHashes);
          TempHashes := 0;
          LastRefresh := UTCTime;
          end;
+      }
       end;
    if ((MyCounter >= 100000000+HashesToTest) and (Testing)) then EndThisThread := true;
    end;
