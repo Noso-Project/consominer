@@ -29,7 +29,7 @@ Type
 var
   MainThread : TMainThread;
   CPUspeed: extended;
-  HashesToTest : integer = 10000;
+  HashesToTest : integer = 25000;
   FirstRun : boolean = true;
   MinerThread : TMinerThread;
 
@@ -87,6 +87,7 @@ While ((not FinishMiners) and (not EndThisThread)) do
          begin
          AddIntervalHashes(TempHashes);
          TempHashes := 0;
+         LastRefresh := UTCTime;
          end;
       end;
    if ((MyCounter >= 100000000+HashesToTest) and (Testing)) then EndThisThread := true;
@@ -95,6 +96,8 @@ DecreaseOMT;
 End;
 
 procedure TMainThread.Execute;
+var
+  elapsed : integer;
 Begin
 While not FinishProgram do
    begin
@@ -115,7 +118,6 @@ While not FinishProgram do
          Begin
          FinishMiners := true;
          PauseMiners := true;
-         GetTotalHashes;
          end;
       if ( (BlockAge >= 10) and (LastSync+3<UTCTime) and (PauseMiners)) then
          begin
@@ -129,6 +131,8 @@ While not FinishProgram do
             LastSpeedCounter := 100000000;
             FinishMiners := false;
             PauseMiners := false;
+            ResetIntervalHashes;
+            SetBlockTimeStart(UTCTime);
             for counter2 := 1 to CPUsToUse do
                 begin
                 MinerThread := TMinerThread.Create(true,counter2);
@@ -148,7 +152,8 @@ While not FinishProgram do
          end;
       if ( (LastSpeedUpdate+4 < UTCTime) and (not Testing) ) then
          begin
-         MiningSpeed := GetTotalHashes / (UTCTime-LastSpeedUpdate);
+         elapsed := UTCTime-BlockTimeStart; If Elapsed = 0 then Elapsed := 1;
+         MiningSpeed := GetTotalHashes / Elapsed;
          if MiningSpeed <0 then MiningSpeed := 0;
          if SyncErrorStr <> '' then write(Format(' %s',[SyncErrorStr]),#13)
          else
@@ -308,7 +313,7 @@ REPEAT
       Miner_Prefix := AddCharR('!',MAINPREFIX+GetPrefix(MinerID),9);
       writeln('Mining with '+CPUcount.ToString+' CPUs and Prefix '+Miner_Prefix);
       writeln('Press CTRL+C to finish');
-      GetTotalHashes;
+      ResetIntervalHashes;
       FinishMiners := false;
       LastSpeedCounter := 100000000;
       StartMiningTimeStamp := UTCTime;
@@ -321,6 +326,8 @@ REPEAT
       Writeln(Format('%s / Target: %s / %s / [%s]' ,[UpTime,Copy(TargetHash,1,10),SourceStr,BalanceToShow]));
       if not SoloMining then
          WriteLn(Format('PoolRate: %s / LastPay: %d->%s',[HashrateToShow(PoolHashRate),PoolLastPayment.block,Int2Curr(PoolLastPayment.ammount)]));
+      ResetIntervalHashes;
+      SetBlockTimeStart(UTCTime);
       for counter2 := 1 to CPUsToUse do
          begin
          MinerThread := TMinerThread.Create(true,counter2);

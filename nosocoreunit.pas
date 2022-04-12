@@ -86,6 +86,9 @@ function GetPrefix(NumberID:integer):string;
 Function BlockAge():integer;
 Procedure AddIntervalHashes(hashes:int64);
 function GetTotalHashes : integer;
+Procedure ResetIntervalHashes();
+Procedure SetBlockTimeStart(TValue:int64);
+Function GetBlockTimeStart():Int64;
 function IsValidHashAddress(Address:String):boolean;
 function IsValid58(base58text:string):boolean;
 function BMDecTo58(numero:string):string;
@@ -100,7 +103,7 @@ Function HashrateToShow(speed:int64):String;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
-  AppVersion = '0.66';
+  AppVersion = '0.67';
   MaxDiff    = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
   HasheableChars = '!"#$%&'#39')*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
   B58Alphabet : string = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -129,11 +132,12 @@ var
   ArrSources : Array of string;
 
   // Critical sections
-  CS_MinerThreads : TRTLCriticalSection;
-  CS_MinerData    : TRTLCriticalSection;
-  CS_Solutions    : TRTLCriticalSection;
-  CS_Log          : TRTLCriticalSection;
-  CS_Interval     : TRTLCriticalSection;
+  CS_MinerThreads   : TRTLCriticalSection;
+  CS_MinerData      : TRTLCriticalSection;
+  CS_Solutions      : TRTLCriticalSection;
+  CS_Log            : TRTLCriticalSection;
+  CS_Interval       : TRTLCriticalSection;
+  CS_BlockTimeStart : TRTLCriticalSection;
 
   // Mining
   MAINPREFIX : String = '';
@@ -171,6 +175,7 @@ var
   LastSpeedCounter : integer = 100000000;
   LastSpeedUpdate : integer = 0;
   LastSpeedHashes : integer = 0;
+  BlockTimeStart  : int64 = 1;
   LastSync : int64 = 0;
   WaitingKey : Char;
   FinishProgram : boolean = false;
@@ -1074,8 +1079,28 @@ function GetTotalHashes : integer;
 Begin
 EnterCriticalSection(CS_Interval);
 Result := ThreadsIntervalHashes;
+LeaveCriticalSection(CS_Interval);
+End;
+
+Procedure ResetIntervalHashes();
+Begin
+EnterCriticalSection(CS_Interval);
 ThreadsIntervalHashes := 0;
 LeaveCriticalSection(CS_Interval);
+End;
+
+Procedure SetBlockTimeStart(TValue:int64);
+Begin
+EnterCriticalSection(CS_BlockTimeStart);
+BlockTimeStart := UTCTime;
+LeaveCriticalSection(CS_BlockTimeStart);
+End;
+
+Function GetBlockTimeStart():Int64;
+Begin
+EnterCriticalSection(CS_BlockTimeStart);
+Result := BlockTimeStart;
+LeaveCriticalSection(CS_BlockTimeStart);
 End;
 
 // Checks if a string is a valid address hash
@@ -1241,9 +1266,12 @@ End;
 
 INITIALIZATION
 InitCriticalSection(CS_MinerThreads);
+InitCriticalSection(CS_BlockTimeStart);
+
 
 FINALIZATION
 DoneCriticalSection(CS_MinerThreads);
+DoneCriticalSection(CS_BlockTimeStart);
 
 END.// END UNIT
 
