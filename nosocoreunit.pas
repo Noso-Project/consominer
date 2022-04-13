@@ -107,7 +107,7 @@ function GetMainnetTimestamp():int64;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
-  AppVersion = '0.68';
+  AppVersion = '0.68-B';
   MaxDiff    = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
   HasheableChars = '!"#$%&'#39')*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
   B58Alphabet : string = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
