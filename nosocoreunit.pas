@@ -37,6 +37,7 @@ type
    block : integer;
    Pending: integer;
    Branch : String[40];
+   UTCTime : int64;
    MNsHash : string[5];
    MNsCount : integer;
    Updated : integer;
@@ -59,6 +60,8 @@ Procedure ShowSettings();
 Procedure LoadData();
 function SaveData():boolean;
 Procedure createpaymentsfile();
+Procedure createSpeedFile();
+Procedure ToSpeedFile(speed:int64);
 function LoadLastPayment():TPayment;
 Procedure InsertNewPayment(paydata:TPayment);
 Function LoadSources():integer;
@@ -100,10 +103,11 @@ Procedure DecreaseOMT();
 Function GetOMTValue():Integer;
 function Int2Curr(Value: int64): string;
 Function HashrateToShow(speed:int64):String;
+function GetMainnetTimestamp():int64;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
-  AppVersion = '0.67';
+  AppVersion = '0.68';
   MaxDiff    = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
   HasheableChars = '!"#$%&'#39')*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
   B58Alphabet : string = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -112,7 +116,7 @@ var
   command:string;
   MaxCPU : integer = 1;
   CPUsToUse : integer = 0;
-  DataFile, LogFile, OldLogFile, PaysFile : TextFile;
+  DataFile, LogFile, OldLogFile, PaysFile, SpeedFile : TextFile;
   Counter, Counter2 : integer;
 
   // Arrays
@@ -140,6 +144,7 @@ var
   CS_BlockTimeStart : TRTLCriticalSection;
 
   // Mining
+  TimeOffSet : int64 = 0;
   MAINPREFIX : String = '';
   MAINBALANCE : int64;
   PoolBALANCE : int64 = 0;
@@ -169,7 +174,7 @@ var
   Testing : Boolean = false;
   RunMiner : Boolean = false;
   StartMiningTimeStamp:int64 = 0;
-  MiningSpeed : extended = 0;
+  MiningSpeed : int64 = 0;
   SentThis : Integer = 0;
   GoodThis : Integer = 0;
   GoodTotal : Integer = 0;
@@ -220,7 +225,7 @@ result := 0;
 G_TIMELocalTimeOffset := GetLocalTimeOffset*60;
 GetLocalTimestamp := DateTimeToUnix(now);
 UnixTime := GetLocalTimestamp+G_TIMELocalTimeOffset;
-result := UnixTime;
+result := UnixTime-TimeOffSet;
 End;
 
 Function Parameter(LineText:String;ParamNumber:int64):String;
@@ -332,6 +337,32 @@ EXCEPT ON E:EXCEPTION do
    writeln('Error creating payments file: '+E.Message);
    Halt(1);
    end
+END {TRY};
+End;
+
+Procedure createSpeedFile();
+Begin
+TRY
+rewrite(SpeedFile);
+CloseFile(SpeedFile);
+EXCEPT ON E:EXCEPTION do
+   begin
+   writeln('Error creating speed file: '+E.Message);
+   Halt(1);
+   end
+END {TRY};
+End;
+
+Procedure ToSpeedFile(speed:int64);
+Begin
+TRY
+Append(SpeedFile);
+WriteLn(SpeedFile,Format('%d[%d] %s',[CurrentBlock,CPUsToUse,HashrateToShow(Speed)]));
+CloseFile(SpeedFile);
+EXCEPT ON E:EXCEPTION do
+   begin
+   ToLog('Error saving to speedhistory: '+E.Message);
+   end;
 END {TRY};
 End;
 
@@ -478,6 +509,7 @@ For counter := 0 to length(ARRAY_Nodes)-1 do
       begin
       Result :=Result+1;
       ARRAY_Nodes[counter].block:=Parameter(Linea,2).ToInteger();
+      ARRAY_Nodes[counter].UTCTime:=StrToInt64Def(Parameter(Linea,7),0);
       ARRAY_Nodes[counter].LBHash:=Parameter(Linea,10);
       ARRAY_Nodes[counter].NMSDiff:=Parameter(Linea,11);
       ARRAY_Nodes[counter].LBTimeEnd:=StrToInt64Def(Parameter(Linea,12),0);
@@ -621,7 +653,6 @@ var
 Begin
 Result := False;
 LastSourceTry := LastSourceTry+1;
-if LastSourceTry<0 then LastSourceTry := 0;
 if LastSourceTry>=length(ArrSources) then LastSourceTry := 0;
 ThisSource := ArrSources[LastSourceTry];
 If UpperCase(ThisSource) = 'MAINNET' then
@@ -893,7 +924,7 @@ TCPclient.ConnectTimeout:= 3000;
 TCPclient.ReadTimeout:=3000;
 REPEAT
 Success := false;
-Trys :=+1;
+Inc(Trys);
 TRY
 TCPclient.Connect;
 TCPclient.IOHandler.WriteLn('SHARE '+address+' '+Data.Hash);
@@ -907,6 +938,7 @@ UNTIL ((Success) or (Trys = 5));
 TCPClient.Free;
 if Success then
    begin
+   SyncErrorStr := '';
    if resultLine = 'True' then
       begin
       GoodThis := GoodThis+1;
@@ -920,8 +952,8 @@ if Success then
 else // Not send
    begin
    ToLog('Unable to send solution to '+SourceStr);
-   SyncErrorStr := 'Connection error. Check your internet connection                               ';
-   Insert(Data,RejectedSols,Length(RejectedSols));
+   SyncErrorStr := Format('%0:-78s',['Connection error. Check your internet connection']);
+   AddSolution(Data);
    end;
 End;
 
@@ -944,7 +976,7 @@ Node := Node+1; If Node >= LEngth(Array_Nodes) then Node := 0;
 TCPclient.Host:=Array_Nodes[Node].host;
 TCPclient.Port:=Array_Nodes[Node].port;
 Success := false;
-Trys :=+1;
+Inc(Trys);
 TRY
 TCPclient.Connect;
 TCPclient.IOHandler.WriteLn('BESTHASH 1 2 3 4 '+address+' '+Data.Hash+' '+IntToStr(Consensus.block+1)+' '+UTCTime.ToString);
@@ -960,6 +992,7 @@ UNTIL ((Success) or (Trys = 5));
 TCPClient.Free;
 If success then
    begin
+   SyncErrorStr := '';
    SentThis := SentThis+1;
    NewDiff := Parameter (Resultado,1);
    If ((NewDiff<Targetdiff) and (length(NewDiff)= 32)) then
@@ -984,8 +1017,8 @@ If success then
 else
    begin
    ToLog('Unable to send solution');
-   SyncErrorStr := 'Connection error. Check your internet connection                               ';
-   Insert(Data,RejectedSols,Length(RejectedSols));
+   SyncErrorStr := Format('%0:-78s',['Connection error. Check your internet connection']);
+   AddSolution(Data);
    end;
 End;
 
@@ -1264,6 +1297,40 @@ if speed>1000000000 then result := FormatFloat('0.00',speed/1000000000)+' Gh/s'
 else if speed>1000000 then result := FormatFloat('0.00',speed/1000000)+' Mh/s'
 else if speed>1000 then result := FormatFloat('0.00',speed/1000)+' Kh/s'
 else result := speed.ToString+' h/s'
+End;
+
+function GetMainnetTimestamp():int64;
+var
+  Client : TidTCPClient;
+  RanNode : integer;
+  ThisNode : TNodeData;
+  Trys : integer = 0;
+  WasDone : boolean = false;
+Begin
+Result := 0;
+REPEAT
+   RanNode := Random(LEngth(Array_Nodes));
+   ThisNode := Array_Nodes[RanNode];
+   Client := TidTCPClient.Create(nil);
+   Client.Host:=ThisNode.host;
+   Client.Port:=ThisNode.port;
+   Client.ConnectTimeout:= 1000;
+   Client.ReadTimeout:=800;
+   TRY
+   Client.Connect;
+   Client.IOHandler.WriteLn('NSLTIME');
+   Result := StrToInt64Def(Client.IOHandler.ReadLn(IndyTextEncoding_UTF8),0);
+   WasDone := true;
+   EXCEPT on E:Exception do
+      begin
+      ToLog('Error getting mainnet timestamp: '+E.Message);
+      WasDone := False;
+      end;
+   END{Try};
+Inc(Trys);
+UNTIL ( (WasDone) or (Trys = 5) );
+if client.Connected then Client.Disconnect();
+client.Free;
 End;
 
 INITIALIZATION

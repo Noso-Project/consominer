@@ -10,6 +10,7 @@ consominer.dbg
 gitinst.txt
 data.txt
 minerpayments.txt
+speedhistory.txt
 *.res
 *.lps
 *.mo
