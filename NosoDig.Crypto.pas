@@ -29,7 +29,7 @@ type
   TByteHash128 = packed array[0..127] of Byte; { 1024 bits }
 
   PAsciiLookup = ^TAsciiLookup;
-  TAsciiLookup = packed array[0..511] of Byte; { keep it power-of-two }
+  TAsciiLookup = packed array[0..504] of Byte;
 
 const
   MAX_DIFF = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
@@ -58,33 +58,14 @@ begin
 end;
 
 function NosoHash(S: String): THash32;
-
-  function Mutate(const pHash: Pointer): Pointer;
-  var
-    i, n, LFirst: UInt8;
-    p: PByte;
-  begin
-    Result := pHash;
-    for n:=127 downto 0 do
-    begin
-      p := Result;
-      LFirst := p^;
-      for i:=126 downto 0 do
-      begin
-        p^ := AsciiLookupTable[ (p^ + PByte(p+1)^) ];
-        Inc(p)
-      end;
-      p^ := AsciiLookupTable[ (p^ + LFirst) ]
-    end
-  end;
-
 var
-  i: UInt8;
-  p: PByte;
+  i, n, LFirst: Byte;
+  p, tab: PByte;
 const
   NOSOHASH_FILLER = '%)+/5;=CGIOSYaegk';
 begin
   Result := '';
+  tab := @AsciiLookupTable;
 
   if Length(S) > 63 then
     SetLength(S, 0);
@@ -100,15 +81,26 @@ begin
     S := S + NOSOHASH_FILLER;
   until Length(S) >= 128;
 
-  { For some strange reason, calling this Mutate() function here
-    is faster than inline code in 32-bit systems }
-  p := Mutate(PAnsiChar(S));
-
+{+20us}
+  for n:=1 to 128 do
+  begin
+    p := Pointer(S);
+    LFirst := p^;
+    for i:=0 to 126 do
+    begin
+      p^ := PByte(tab + (p^ + PByte(p+1)^))^;
+      Inc(p);
+    end;
+    p^ := PByte(tab + (p^ + LFirst))^;
+  end;
+{+2us}
+  p := Pointer(S);
   for i:=0 to 31 do
   begin
-    Result[i] := BinToHexFast(AsciiLookupTable[ (p^ + PByte(p+1)^ + PByte(p+2)^ + PByte(p+3)^) ] mod 16);
+    Result[i] := BinToHexFast(PByte(tab + (p^ + PByte(p+1)^ + PByte(p+2)^ + PByte(p+3)^))^ mod 16);
     Inc(p, 4);
   end;
+{+10us}
   Result := MD5Print(MDBuffer(Result, SizeOf(THash32), MD_VERSION_5)).ToUpper;
 end;
 
@@ -127,8 +119,6 @@ var
 begin
   for i:=Low(AsciiLookupTable) to High(AsciiLookupTable) do
   begin
-    if (i < 32) or (i > 504) then
-      continue;
     n := i;
     while n > 126 do Dec(n, 95);
     AsciiLookupTable[i] := n;
@@ -138,5 +128,4 @@ end;
 initialization
   FillLookupTables;
 end.
-
 
