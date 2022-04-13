@@ -354,7 +354,7 @@ REPEAT
          end;
       SetOMT(CPUsToUse);
       Repeat
-         Sleep(10);
+         Sleep(10000);
       until FinishProgram;
       end
    else if Uppercase(Parameter(command,0)) = 'HELP' then ShowHelp
