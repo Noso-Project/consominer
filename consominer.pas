@@ -221,6 +221,10 @@ MainThread := TMainThread.Create(true);
 MainThread.FreeOnTerminate:=true;
 MainThread.Start;
 PoolLastPayment := LoadLastPayment;
+if not autostart then
+   begin
+   WriteLn(ShowPoolInfo);
+   end;
 REPEAT
    command := '';
    if FirstRun then
@@ -252,6 +256,10 @@ REPEAT
       cpucount := StrToIntDef(parameter(command,1),CPUCount);
       savedata();
       writeln ('Mining CPUs set to : '+CPUCount.ToString);
+      end
+   else if Uppercase(Parameter(command,0)) = 'POOLS' then
+      begin
+      WriteLn(ShowPoolInfo);
       end
    else if Uppercase(Parameter(command,0)) = 'TEST' then
       begin

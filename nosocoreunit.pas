@@ -69,6 +69,8 @@ function LoadSeedNodes():integer;
 Function GetConsensus():TNodeData;
 Function CheckSource():Boolean;
 Function GetPoolData(IpandPor:String):String;
+Function GetPoolInfo(IpandPor:String):String;
+Function ShowPoolInfo():string;
 Function SyncNodes():integer;
 Procedure DoNothing();
 Function NosoHashOld(source:string):string;
@@ -107,7 +109,7 @@ function GetMainnetTimestamp():int64;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
-  AppVersion = '0.68-B';
+  AppVersion = '0.70';
   MaxDiff    = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
   HasheableChars = '!"#$%&'#39')*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
   B58Alphabet : string = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -752,6 +754,65 @@ if Parameter(ResultLine,0)='OK' then
    end;
 End;
 
+Function GetPoolInfo(IpandPor:String):String;
+var
+  TCPClient : TidTCPClient;
+  ResultLine : String = '';
+Begin
+Result := 'ERROR';
+ResultLine := '';
+TCPClient := TidTCPClient.Create(nil);
+IpandPor := StringReplace(IpandPor,':',' ',[rfReplaceAll, rfIgnoreCase]);
+TCPclient.Host:=Parameter(IpandPor,0);
+TCPclient.Port:=StrToIntDef(Parameter(IpandPor,1),8082);
+TCPclient.ConnectTimeout:= 3000;
+TCPclient.ReadTimeout:=3000;
+TRY
+TCPclient.Connect;
+TCPclient.IOHandler.WriteLn('POOLINFO');
+ResultLine := TCPclient.IOHandler.ReadLn(IndyTextEncoding_UTF8);
+TCPclient.Disconnect();
+EXCEPT on E:Exception do
+   begin
+   ResultLine := E.Message;
+   end;
+END{try};
+TCPClient.Free;
+if ResultLine <> '' then Result := ResultLine;
+End;
+
+Function ShowPoolInfo():string;
+var
+  ThisPool, ThisLine : string;
+  PoolName, ThisMiners : string[20];
+  Thisfee : integer;
+  thisrate : int64;
+  Counter : integer;
+  IpAndPort : string;
+Begin
+result := '---------------------------------------------------------------'+slinebreak;
+Result := Result+format('| %0:-20s | %10s | %14s | %5s%% |',['Pool','Miners','Hashrate','Fee'])+SlineBreak+'---------------------------------------------------------------'+slinebreak;
+if LoadSources>0 then
+   begin
+   for counter :=0 to length(ArrSources)-1 do
+       begin
+       if UpperCase(ArrSources[counter]) <> 'MAINNET' then
+          begin
+          IpAndPort := ArrSources[counter];
+          IpandPort := StringReplace(IpandPort,':',' ',[rfReplaceAll, rfIgnoreCase]);
+          PoolName := Format('%0:-20s',[Parameter(IpAndPort,0)]);
+          ThisPool :=GetPoolInfo(ArrSources[counter]);
+          ThisMiners := Parameter(ThisPool,0);
+          thisrate := StrToInt64Def(Parameter(ThisPool,1),0);
+          thisfee := StrToIntDef(Parameter(ThisPool,2),0);
+          ThisLine := format('| %20s | %10s | %14s | %5s%% |',[PoolName,ThisMiners,HashrateToShow(ThisRate),FormatFloat('0.00',ThisFee/100)]);
+          Result := Result+ThisLine+Slinebreak+'---------------------------------------------------------------'+slinebreak;
+          end;
+       end;
+   end;
+End;
+
+
 Procedure DoNothing();
 Begin
 // Reminder for later adition
@@ -1010,7 +1071,7 @@ If success then
       end
    else
       begin
-      ErrorCode := StrToIntDef(Parameter(Resultado,2),0);
+      ErrorCode := StrToIntDef(Parameter(Resultado,2),-1);
       ToLog('Rejected Solution: '+ErrorCode.ToString);
       end;
    end
@@ -1092,6 +1153,7 @@ var
   firstchar, secondchar : integer;
   HashChars : integer;
 Begin
+NumberID := NumberID mod 8100;
 HashChars :=  length(HasheableChars)-1;
 firstchar := NumberID div HashChars;
 secondchar := NumberID mod HashChars;
@@ -1314,8 +1376,8 @@ REPEAT
    Client := TidTCPClient.Create(nil);
    Client.Host:=ThisNode.host;
    Client.Port:=ThisNode.port;
-   Client.ConnectTimeout:= 1000;
-   Client.ReadTimeout:=800;
+   Client.ConnectTimeout:= 3000;
+   Client.ReadTimeout:= 3000;
    TRY
    Client.Connect;
    Client.IOHandler.WriteLn('NSLTIME');
