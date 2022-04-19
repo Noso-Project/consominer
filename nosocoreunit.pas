@@ -128,7 +128,7 @@ var
   RejectedSols: Array of TSolution;
 
   // User options
-  source : string = 'mainnet';
+  source : string = '45.146.252.103:8082 209.126.80.203:8082 mainnet';
   address : string = 'N2kFAtGWLb57Qz91sexZSAnYwA3T7Cy';
   cpucount : integer = 1;
   autostart : boolean = false;
@@ -195,7 +195,9 @@ var
                           '107.175.59.177:8080 '+
                           '107.172.193.176:8080 '+
                           '107.175.194.151:8080 '+
-                          '192.3.73.184:8080';
+                          '192.3.73.184:8080 '+
+                          '107.175.24.151:8080 '+
+                          '107.174.137.27:8080';
 
 implementation
 
@@ -704,11 +706,12 @@ else
                PoolPayData.block:=StrToIntDef(Parameter(PoolPayStr,0),0);
                PoolPayData.ammount:=StrToInt64Def(Parameter(PoolPayStr,1),0);
                PoolPayData.OrderID:=Parameter(PoolPayStr,2);
-               if PoolPayData.OrderID <> PoolLastPayment.OrderID then
+               if ((PoolPayData.OrderID <> PoolLastPayment.OrderID) and (PoolPayData.ammount>0)) then
                   begin
                   PoolLastPayment := PoolPayData;
                   InsertNewPayment(PoolLastPayment);
-                  Writeln('*** NEW POOL PAYMENT ***')
+                  Writeln('*** NEW POOL PAYMENT ***');
+                  ToLog(Format('%s -> %s',[Int2Curr(PoolPayData.ammount),PoolPayData.OrderID]));
                   end;
             PoolHashRate    := StrToInt64Def(Parameter(PoolString,9),0);
             NetworkHashRate    := StrToInt64Def(Parameter(PoolString,10),0);
@@ -740,7 +743,7 @@ TCPclient.ConnectTimeout:= 3000;
 TCPclient.ReadTimeout:=3000;
 TRY
 TCPclient.Connect;
-TCPclient.IOHandler.WriteLn('SOURCE '+Address);
+TCPclient.IOHandler.WriteLn('SOURCE '+Address+' Consov'+AppVersion);
 ResultLine := TCPclient.IOHandler.ReadLn(IndyTextEncoding_UTF8);
 TCPclient.Disconnect();
 EXCEPT on E:Exception do
@@ -789,6 +792,7 @@ var
   thisrate : int64;
   Counter : integer;
   IpAndPort : string;
+  DetectedPools : integer = 0;
 Begin
 result := '---------------------------------------------------------------'+slinebreak;
 Result := Result+format('| %0:-20s | %10s | %14s | %5s%% |',['Pool','Miners','Hashrate','Fee'])+SlineBreak+'---------------------------------------------------------------'+slinebreak;
@@ -807,8 +811,11 @@ if LoadSources>0 then
           thisfee := StrToIntDef(Parameter(ThisPool,2),0);
           ThisLine := format('| %20s | %10s | %14s | %5s%% |',[PoolName,ThisMiners,HashrateToShow(ThisRate),FormatFloat('0.00',ThisFee/100)]);
           Result := Result+ThisLine+Slinebreak+'---------------------------------------------------------------'+slinebreak;
+          Inc(DetectedPools)
           end;
        end;
+   if DetectedPools = 0 then
+      Result := Result+'No pools listed'+slinebreak;
    end;
 End;
 
@@ -988,7 +995,7 @@ Success := false;
 Inc(Trys);
 TRY
 TCPclient.Connect;
-TCPclient.IOHandler.WriteLn('SHARE '+address+' '+Data.Hash);
+TCPclient.IOHandler.WriteLn('SHARE '+address+' '+Data.Hash+' Consov'+AppVersion+' '+CurrentBlock.ToString+' '+Data.target);
 ResultLine := TCPclient.IOHandler.ReadLn(IndyTextEncoding_UTF8);
 TCPclient.Disconnect();
 Success := true;
@@ -1002,8 +1009,8 @@ if Success then
    SyncErrorStr := '';
    if resultLine = 'True' then
       begin
-      GoodThis := GoodThis+1;
-      ToLog('Submited share: '+Data.Diff);
+      Inc(GoodThis);
+      ToLog(Format('Submited share[%d]: %s',[GoodThis,Data.Diff]));
       end
    else
       begin
@@ -1066,7 +1073,7 @@ If success then
    if WasGood then
       begin
       GoodTotal := GoodTotal+1;
-      GoodThis := GoodThis+1;
+      Inc(GoodThis);
       ToLog('Submited solution: '+Data.Diff);
       end
    else

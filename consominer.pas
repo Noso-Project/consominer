@@ -216,15 +216,16 @@ if FirstTimeStamp>0 then
    end
 else WriteLn('Unable to get mainnet timestamp');
 writeln('Using '+address+' with '+CPUCount.ToString+' cores');
+if not autostart then
+   begin
+   Write('Requesting listed pools info...',#13);
+   WriteLn(ShowPoolInfo);
+   end;
 if not autostart then writeln('Please type help to get a list of commands');
 MainThread := TMainThread.Create(true);
 MainThread.FreeOnTerminate:=true;
 MainThread.Start;
 PoolLastPayment := LoadLastPayment;
-if not autostart then
-   begin
-   WriteLn(ShowPoolInfo);
-   end;
 REPEAT
    command := '';
    if FirstRun then
