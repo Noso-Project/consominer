@@ -6,7 +6,8 @@ uses
   {$IFDEF UNIX}
    cthreads,
   {$ENDIF}
-  Classes, sysutils, strutils, nosocoreunit, NosoDig.Crypto, UTF8Process
+  Classes, sysutils, strutils, nosocoreunit, NosoDig.Crypto, UTF8Process,
+  NosoDig.Crypto68b, NosoDig.Crypto68, NosoDig.Crypto65
   { you can add units after this };
 
 Type
@@ -50,7 +51,8 @@ End;
 
 procedure TMinerThread.Execute;
 var
-  BaseHash, ThisHash, ThisDiff : string;
+  BaseHash, ThisDiff : string;
+  ThisHash : string = '';
   ThisSolution : TSolution;
   MyID : integer;
   ThisPrefix : string = '';
@@ -66,7 +68,10 @@ While ((not FinishMiners) and (not EndThisThread)) do
    begin
    BaseHash := ThisPrefix+MyCounter.ToString;
    Inc(MyCounter);
-   ThisHash := NosoHash(BaseHash+MiningAddress);
+   if hashlib = 70 then ThisHash := NosoHash(BaseHash+MiningAddress)
+   else if hashlib = 69 then ThisHash := NosoHash68b(BaseHash+MiningAddress)
+   else if hashlib = 68 then ThisHash := NosoHash68(BaseHash+MiningAddress)
+   else if hashlib = 65 then ThisHash := NosoHash65(BaseHash+MiningAddress);
    ThisDiff := GetHashDiff(TargetHash,ThisHash);
    if ThisDiff<ThreadBest then
       begin
@@ -203,6 +208,11 @@ if not FileExists('consominer.cfg') then savedata();
 if not FileExists('minerpayments.txt') then createpaymentsfile();
 if not FileExists('speedhistory.txt') then createSpeedFile();
 loaddata();
+if not AnsiContainsStr(ValidHashlibs,Hashlib.ToString) then
+   begin
+   hashlib := 70;
+   savedata;
+   end;
 LoadSeedNodes;
 writeln('Consominer Nosohash '+AppVersion);
 writeln('Built using FPC '+fpcVersion);
@@ -216,6 +226,7 @@ if FirstTimeStamp>0 then
    end
 else WriteLn('Unable to get mainnet timestamp');
 writeln('Using '+address+' with '+CPUCount.ToString+' cores');
+writeln('Using hashing library: '+HashLib.ToString);
 if not autostart then
    begin
    Write('Requesting listed pools info...',#13);
@@ -262,13 +273,24 @@ REPEAT
       begin
       WriteLn(ShowPoolInfo);
       end
+   else if Uppercase(Parameter(command,0)) = 'HASHLIB' then
+      begin
+      if not AnsiContainsStr(ValidHashlibs,Parameter(command,1)) then
+         writeln('Invalid hashlib value'+slinebreak+'Valid values: '+ValidHashlibs)
+      else
+         begin
+         HashLib := StrToIntDef(Parameter(command,1),70);
+         writeln('Hashing library set to '+Hashlib.ToString);
+         savedata();
+         end;
+      end
    else if Uppercase(Parameter(command,0)) = 'TEST' then
       begin
       CPUsToUse := StrToIntDef(Parameter(command,1),MaxCPU);
       Testing:= true;
       for counter :=1 to CPUsToUse do
          begin
-         write('Testing '+HashesToTest.toString+' hashes with '+counter.ToString+' CPUs: ');
+         write(Format('  CPUs: %d [Hashlib %d]= ',[counter,hashlib]));
          TestStart := GetTickCount64;
          FinishMiners := false;
          SetOMT(Counter);

@@ -5,7 +5,9 @@ unit nosocoreunit;
 interface
 
 uses
-  Classes, SysUtils,IdTCPClient, IdGlobal, dateutils, strutils, MD5 ;
+  Classes, SysUtils,IdTCPClient, IdGlobal, dateutils, strutils, MD5,
+  //extra hashing libs
+  NosoDig.Crypto68b,NosoDig.Crypto68,NosoDig.Crypto65;
 
 type
   TConsensus= packed record
@@ -109,10 +111,11 @@ function GetMainnetTimestamp():int64;
 
 CONST
   fpcVersion = {$I %FPCVERSION%};
-  AppVersion = '0.70';
+  AppVersion = '1.00';
   MaxDiff    = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
   HasheableChars = '!"#$%&'#39')*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
   B58Alphabet : string = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+  ValidHashlibs = '65 68 69 70';
 
 var
   command:string;
@@ -128,11 +131,12 @@ var
   RejectedSols: Array of TSolution;
 
   // User options
-  source : string = '45.146.252.103:8082 209.126.80.203:8082 mainnet';
-  address : string = 'N2kFAtGWLb57Qz91sexZSAnYwA3T7Cy';
-  cpucount : integer = 1;
-  autostart : boolean = false;
-  minerid : Integer = 0;
+  source     : string = '45.146.252.103:8082 209.126.80.203:8082 mainnet';
+  address    : string = 'N2kFAtGWLb57Qz91sexZSAnYwA3T7Cy';
+  cpucount   : integer = 1;
+  autostart  : boolean = false;
+  minerid    : Integer = 0;
+  HashLib    : Integer = 71;
 
   LastSourceTry : Integer = 0;
   ArrSources : Array of string;
@@ -284,9 +288,8 @@ End;
 
 Procedure ShowHelp();
 Begin
-WriteLn('');
 Writeln('Available commands (Caps unsensitive)');
-WriteLn('');
+WriteLn('--------------------------------------------------------------');
 Writeln('help                   -> Shows this info');
 Writeln('settings               -> Show the current miner settings');
 Writeln('source {source}        -> Source information for the miner');
@@ -294,10 +297,12 @@ Writeln('address {address}      -> The miner address (not custom)');
 Writeln('cpu {number}           -> Number of cores for Mining');
 Writeln('autostart {true/false} -> Start Mining directly');
 Writeln('minerid [0-8100]       -> Optional unique miner ID');
+Writeln('hashlib {value}        -> Hashing library');
 Writeln('test [cpus]            -> Speed test from 1 to MaxCPUs or cpus');
 Writeln('mine                   -> Start Mining with current settings');
+Writeln('pools                  -> Show source pools info');
 Writeln('exit                   -> Close the app');
-Writeln('');
+WriteLn('--------------------------------------------------------------');
 End;
 
 Procedure ShowSettings();
@@ -310,6 +315,7 @@ WriteLn('Address   : '+address);
 WriteLn('CPUs      : '+CPUCount.ToString);
 WriteLn('AutoStart : '+BoolToStr(AutoStart,true));
 WriteLn('MinerID   : '+MinerID.ToString);
+WriteLn('HashLib   : '+HashLib.ToString);
 WriteLn();
 End;
 
@@ -323,6 +329,7 @@ writeln(datafile,'address '+Address);
 writeln(datafile,'cpu '+CPUCount.ToString);
 writeln(datafile,'autostart '+BoolToStr(AutoStart,true));
 writeln(datafile,'minerid '+MinerID.ToString);
+writeln(datafile,'hashlib '+hashlib.ToString);
 CloseFile(datafile);
 EXCEPT ON E:EXCEPTION do
    begin
@@ -414,6 +421,7 @@ while not eof(datafile) do
    if uppercase(Parameter(linea,0)) = 'CPU' then CPUCount := StrToIntDef(Parameter(linea,1),1);
    if uppercase(Parameter(linea,0)) = 'AUTOSTART' then AutoStart := StrToBoolDef(Parameter(linea,1),false);
    if uppercase(Parameter(linea,0)) = 'MINERID' then MinerID := StrToIntDef(Parameter(linea,1),MinerID);
+   if uppercase(Parameter(linea,0)) = 'HASHLIB' then HashLib := StrToIntDef(Parameter(linea,1),HashLib);
    end;
 EXCEPT ON E:EXCEPTION do
    begin
@@ -777,7 +785,7 @@ ResultLine := TCPclient.IOHandler.ReadLn(IndyTextEncoding_UTF8);
 TCPclient.Disconnect();
 EXCEPT on E:Exception do
    begin
-   ResultLine := E.Message;
+   ResultLine := '';
    end;
 END{try};
 TCPClient.Free;
